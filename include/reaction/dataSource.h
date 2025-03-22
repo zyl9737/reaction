@@ -50,9 +50,9 @@ namespace reaction
         explicit Source(T &&t, A &&...args) : SourceTraits<Derived>::ExprType(std::forward<T>(t), std::forward<A>(args)...) {}
 
         template <typename T, typename... A>
-        void set(T &&t, A &&...args)
+        bool set(T &&t, A &&...args)
         {
-            this->setSource(std::forward<T>(t), std::forward<A>(args)...);
+            return this->setSource(std::forward<T>(t), std::forward<A>(args)...);
         }
 
         void setTriggerMode(TriggerMode mode)
@@ -63,7 +63,7 @@ namespace reaction
         void addTimer(std::chrono::milliseconds interval)
         {
             m_taskID = HierarchicalTimerWheel::getInstance().addTask(interval, [this]()
-                                                          { this->evaluate(); });
+                                                                     { this->evaluate(); });
         }
 
         void removeTimer()
@@ -183,7 +183,7 @@ namespace reaction
             {
                 return sharedPtr;
             }
-            return nullptr;
+            throw std::runtime_error("Attempted to use a null weak pointer");
         }
 
         DataType &operator*()
@@ -193,7 +193,7 @@ namespace reaction
             {
                 return *sharedPtr;
             }
-            throw Exception("Attempted to dereference a null weak pointer.");
+            throw std::runtime_error("Attempted to use a null weak pointer.");
         }
 
     private:
@@ -233,7 +233,10 @@ namespace reaction
     {
         auto ptr = std::make_shared<DataSource<Fun, typename ExtractDataWeakRef<std::decay_t<Args>>::Type...>>();
         ObserverGraph::getInstance().addNode(ptr);
-        ptr->set(std::forward<Fun>(fun), std::forward<Args>(args)...);
+        if (ptr->set(std::forward<Fun>(fun), std::forward<Args>(args)...))
+        {
+            ObserverGraph::getInstance().deleteNode(ptr);
+        }
         return DataWeakRef{ptr};
     }
 
@@ -242,7 +245,10 @@ namespace reaction
     {
         auto ptr = std::make_shared<ActionSource>();
         ObserverGraph::getInstance().addNode(ptr);
-        ptr->set(std::forward<Fun>(fun), std::forward<Args>(args)...);
+        if (ptr->set(std::forward<Fun>(fun), std::forward<Args>(args)...))
+        {
+            ObserverGraph::getInstance().deleteNode(ptr);
+        }
         return DataWeakRef{ptr};
     }
 

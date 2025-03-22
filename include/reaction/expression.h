@@ -1,7 +1,7 @@
 #ifndef REACTION_EXPRESSION_H
 #define REACTION_EXPRESSION_H
 
-#include "reaction/exception.h"
+#include "reaction/log.h"
 #include "reaction/resource.h"
 #include "reaction/observerNode.h"
 #include "reaction/timerWheel.h"
@@ -17,7 +17,7 @@ namespace reaction
         };
     }
 
-    template<typename Derived>
+    template <typename Derived>
     class ExpressionTrigger
     {
     public:
@@ -73,11 +73,15 @@ namespace reaction
         }
 
         template <typename F, typename... A>
-        void setSource(F &&f, A &&...args)
+        bool setSource(F &&f, A &&...args)
         {
             m_fun = createFun(std::forward<F>(f), std::forward<A>(args)...);
-            this->updateObservers(std::forward<A>(args)...);
+            if (!this->updateObservers(std::forward<A>(args)...))
+            {
+                return false;
+            }
             this->updateValue(evaluate());
+            return true;
         }
 
     private:
@@ -98,7 +102,7 @@ namespace reaction
         }
 
         template <typename T>
-        void setSource(T &&t)
+        bool setSource(T &&t)
         {
             this->updateValue(std::forward<T>(t));
         }
@@ -120,11 +124,15 @@ namespace reaction
         }
 
         template <typename F, typename... A>
-        void setSource(F &&f, A &&...args)
+        bool setSource(F &&f, A &&...args)
         {
             m_fun = createFun(std::forward<F>(f), std::forward<A>(args)...);
-            this->updateObservers(std::forward<A>(args)...);
+            if (!this->updateObservers(std::forward<A>(args)...))
+            {
+                return false;
+            }
             evaluate();
+            return true;
         }
 
     private:

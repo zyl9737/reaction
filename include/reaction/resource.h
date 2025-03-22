@@ -3,6 +3,7 @@
 #define REACTION_RESOURCE_H
 
 #include <memory>
+#include <exception>
 
 namespace reaction
 {
@@ -20,7 +21,7 @@ namespace reaction
         {
             if (!m_ptr)
             {
-                throw std::runtime_error("Attempt to dereference a null pointer");
+                throw std::runtime_error("Attempt to use a null pointer");
             }
             return *m_ptr;
         }
