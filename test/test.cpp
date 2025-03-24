@@ -93,32 +93,38 @@ TEST(TestSelfDependency, ReactionTest)
 
 TEST(TestRepeatDependency, ReactionTest) {
     auto a = reaction::makeMetaDataSource(1);
+    a->setName("a");
 
     // 创建数据源 dsA，依赖 a 和 b
     auto dsA = reaction::makeVariableDataSource([](int aa) {
         return aa;
     }, a);
+    dsA->setName("dsA");
 
     // 创建数据源 dsB，依赖 a、b 和 dsA
     auto dsB = reaction::makeVariableDataSource([](int aa, int dsAValue) {
         return aa + dsAValue;
     }, a, dsA);
+    dsB->setName("dsB");
 
     // 创建数据源 dsC，依赖 b、c 和 dsB
     auto dsC = reaction::makeVariableDataSource([](int aa, int dsAValue, int dsBValue) {
         return aa + dsAValue + dsBValue;
     }, a, dsA, dsB);
+    dsC->setName("dsC");
 
     // 创建数据源 dsD，依赖 c、d 和 dsC
     auto dsD = reaction::makeVariableDataSource([](int dsAValue, int dsBValue, int dsCValue) {
         return dsAValue + dsBValue + dsCValue;
     }, dsA, dsB, dsC);
+    dsD->setName("dsD");
 
 
     // 创建数据源 dsF，依赖 dsA、dsB 和 dsE
     auto dsE = reaction::makeVariableDataSource([](int dsBValue, int dsCValue, int dsDValue) {
         return dsBValue * dsCValue + dsDValue;
     }, dsB, dsC, dsD);
+    dsE->setName("dsE");
 
     // 检查初始值
     EXPECT_EQ(dsA->get(), 1);   // 1 + 2 = 3
@@ -133,7 +139,7 @@ TEST(TestRepeatDependency, ReactionTest) {
     EXPECT_EQ(dsB->get(), 20);   // 1 * 2 + 3 = 5
     EXPECT_EQ(dsC->get(), 40);   // 2 - 3 + 5 = 4
     EXPECT_EQ(dsD->get(), 70);   // 3 / 4 + 4 ≈ 4 (整数除法)
-    EXPECT_EQ(dsE->get(), 150);  // 4 + 5 + 4 = 13
+    EXPECT_EQ(dsE->get(), 870);  // 4 + 5 + 4 = 13
 
 }
 

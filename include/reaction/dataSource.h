@@ -127,11 +127,15 @@ namespace reaction
         {
             if (this->m_mode == TriggerMode::Always || (this->m_mode == TriggerMode::OnValueChange && changed))
             {
-                this->updateValue(this->evaluate());
+                auto lastVal = get();
+                auto newVal = this->evaluate();
+                this->updateValue(newVal);
+                this->notifyObservers(lastVal != newVal);
             }
             else if (this->m_mode == TriggerMode::Threshold)
             {
                 this->updateValue(this->evaluate(true));
+                this->notifyObservers();
             }
         }
     };
