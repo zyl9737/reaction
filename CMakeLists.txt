@@ -2,35 +2,43 @@ cmake_minimum_required(VERSION 3.10)
 
 project(reaction VERSION 1.0)
 
-# 强制设置 C++20 标准
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
-add_compile_options(-std=c++20)  # 强制使用 C++20
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build." FORCE)
+if(MSVC)
+    add_compile_options(/GR-)
+else()
+    add_compile_options(-fno-rtti -std=c++20)
 endif()
 
-include_directories(${PROJECT_SOURCE_DIR}/include)
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build." FORCE)
+endif()
 
-file(GLOB SOURCES ${PROJECT_SOURCE_DIR}/include/reaction/*.h)
+add_library(${PROJECT_NAME} INTERFACE)
 
-add_library(${PROJECT_NAME} SHARED ${SOURCES})
+target_include_directories(${PROJECT_NAME} INTERFACE
+    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
 
-set_target_properties(${PROJECT_NAME} PROPERTIES LINKER_LANGUAGE CXX)
+file(GLOB HEADERS ${PROJECT_SOURCE_DIR}/include/reaction/*.h)
+target_sources(${PROJECT_NAME} INTERFACE ${HEADERS})
 
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/build)
+file(GLOB EXAMPLE_SOURCES ${PROJECT_SOURCE_DIR}/example/*.cpp)
+foreach(example_file ${EXAMPLE_SOURCES})
+    get_filename_component(example_name ${example_file} NAME_WE)
+    add_executable(${example_name} ${example_file})
+    target_link_libraries(${example_name} PRIVATE ${PROJECT_NAME})
+endforeach()
 
-enable_testing()
-
-find_package(GTest REQUIRED)
-
-file(GLOB TEST_SOURCES ${PROJECT_SOURCE_DIR}/test/*.cpp)
-
-add_executable(runTests ${TEST_SOURCES})
-
-target_link_libraries(runTests GTest::GTest GTest::Main ${PROJECT_NAME})
-
-target_include_directories(runTests PRIVATE ${PROJECT_SOURCE_DIR}/include)
-
-add_test(NAME reactionTest COMMAND runTests)
+find_package(GTest)
+if(GTest_FOUND)
+    enable_testing()
+    file(GLOB TEST_SOURCES ${PROJECT_SOURCE_DIR}/test/*.cpp)
+    add_executable(runTests ${TEST_SOURCES})
+    target_link_libraries(runTests PRIVATE GTest::GTest GTest::Main ${PROJECT_NAME})
+    add_test(NAME reactionTest COMMAND runTests)
+else()
+    message(WARNING "GTest not found, skipping tests.")
+endif()
