@@ -20,7 +20,7 @@ struct DirectFailureStrategy {
 struct KeepCalculateStrategy {
     // No specific handling for invalid state
     template <typename Source>
-    void handleInvalid(Source &&source) {
+    void handleInvalid([[maybe_unused]] Source &&source) {
     }
 };
 

@@ -22,7 +22,7 @@ inline auto createUpdateFunRef(F &&f, A &&...args) {
 // Trigger mode that always returns true
 struct AlwaysTrigger {
     // Always triggers regardless of the arguments
-    bool checkTrigger(bool trigger = true) {
+    bool checkTrigger([[maybe_unused]] bool trigger = true) {
         return true; // Always triggers
     }
 };
@@ -49,7 +49,7 @@ struct ThresholdTrigger {
     }
 
     // Check whether the trigger condition is met using the threshold function
-    bool checkTrigger(bool trigger = true) {
+    bool checkTrigger([[maybe_unused]] bool trigger = true) {
         return std::invoke(m_thresholdFun); // Calls the threshold function to determine trigger condition
     }
 

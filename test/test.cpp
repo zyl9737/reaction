@@ -80,7 +80,7 @@ TEST(TestAction, ActionTest) {
     auto ds = reaction::makeVariableDataSource([](auto aa, auto bb) { return std::to_string(aa) + std::to_string(bb); }, a, b);
 
     int val = 10;
-    auto dds = reaction::makeActionSource([&val](auto aa, auto dsds) { val = aa; }, a, ds);
+    auto dds = reaction::makeActionSource([&val](auto aa) { val = aa; }, a);
 
     EXPECT_EQ(val, 1); // Initial value set by the action
     *a = 2;            // Trigger the action
@@ -313,12 +313,12 @@ TEST(TestDirectFailureStrategy, ReactionTest) {
     b.setName("b");
 
     // Create multiple data sources
-    auto dsB = reaction::makeVariableDataSource([](auto aa) { return 1; }, a);
-    auto dsC = reaction::makeVariableDataSource([](auto aa) { return 1; }, a);
-    auto dsD = reaction::makeVariableDataSource([](auto aa) { return 1; }, a);
-    auto dsE = reaction::makeVariableDataSource([](auto aa) { return 1; }, a);
-    auto dsF = reaction::makeVariableDataSource([](auto aa) { return 1; }, a);
-    auto dsG = reaction::makeVariableDataSource([](auto aa) { return 1; }, a);
+    auto dsB = reaction::makeVariableDataSource([](auto aa) { return aa; }, a);
+    auto dsC = reaction::makeVariableDataSource([](auto aa) { return aa; }, a);
+    auto dsD = reaction::makeVariableDataSource([](auto aa) { return aa; }, a);
+    auto dsE = reaction::makeVariableDataSource([](auto aa) { return aa; }, a);
+    auto dsF = reaction::makeVariableDataSource([](auto aa) { return aa; }, a);
+    auto dsG = reaction::makeVariableDataSource([](auto aa) { return aa; }, a);
     dsB.setName("dsB");
     dsC.setName("dsC");
     dsD.setName("dsD");
@@ -360,10 +360,10 @@ TEST(TestKeepCalculateStrategy, ReactionTest) {
     auto b = reaction::makeMetaDataSource(2);
     b.setName("b");
 
-    auto dsB = reaction::makeVariableDataSource([](auto aa) { return 1; }, a);
-    auto dsC = reaction::makeVariableDataSource([](auto aa) { return 1; }, a);
-    auto dsD = reaction::makeVariableDataSource([](auto aa) { return 1; }, a);
-    auto dsE = reaction::makeVariableDataSource([](auto aa) { return 1; }, a);
+    auto dsB = reaction::makeVariableDataSource([](auto aa) { return aa; }, a);
+    auto dsC = reaction::makeVariableDataSource([](auto aa) { return aa; }, a);
+    auto dsD = reaction::makeVariableDataSource([](auto aa) { return aa; }, a);
+    auto dsE = reaction::makeVariableDataSource([](auto aa) { return aa; }, a);
     dsB.setName("dsB");
     dsC.setName("dsC");
     dsD.setName("dsD");
@@ -403,10 +403,10 @@ TEST(TestUseLastValidValueStrategy, ReactionTest) {
     auto b = reaction::makeMetaDataSource(2);
     b.setName("b");
 
-    auto dsB = reaction::makeVariableDataSource([](auto aa) { return 1; }, a);
-    auto dsC = reaction::makeVariableDataSource([](auto aa) { return 1; }, a);
-    auto dsD = reaction::makeVariableDataSource([](auto aa) { return 1; }, a);
-    auto dsE = reaction::makeVariableDataSource([](auto aa) { return 1; }, a);
+    auto dsB = reaction::makeVariableDataSource([](auto aa) { return aa; }, a);
+    auto dsC = reaction::makeVariableDataSource([](auto aa) { return aa; }, a);
+    auto dsD = reaction::makeVariableDataSource([](auto aa) { return aa; }, a);
+    auto dsE = reaction::makeVariableDataSource([](auto aa) { return aa; }, a);
     dsB.setName("dsB");
     dsC.setName("dsC");
     dsD.setName("dsD");
@@ -541,7 +541,7 @@ TEST(DataSourceStressTest, DeepDependencyChain) {
 
     // Layer 7: Sum all elements in the vector
     auto layer7 = makeVariableDataSource([](const std::vector<int> &vec) {
-        return std::accumulate(vec.begin(), vec.end(), 0.0);
+        return std::accumulate(vec.begin(), vec.end(), 0);
     },
                                          layer6);
 
@@ -581,7 +581,7 @@ TEST(DataSourceStressTest, DeepDependencyChain) {
             std::string l4 = l3 + "_" + base4.get();                      // Append base1
             size_t l5 = l4.length();                                      // Get string length
             std::vector<int> l6(l5, base5.get());                         // Create vector of length 'l5'
-            int l7 = std::accumulate(l6.begin(), l6.end(), 0.0);          // Sum vector values
+            int l7 = std::accumulate(l6.begin(), l6.end(), 0);          // Sum vector values
             ProcessedData l8{"ProcessedData", static_cast<int>(l7)};      // Create ProcessedData object
             std::string l9 = l8.info + "|" + std::to_string(l8.checksum); // Combine info and checksum
             return "Final:" + l9;                                         // Add final prefix
