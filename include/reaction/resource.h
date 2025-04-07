@@ -7,25 +7,21 @@
 
 namespace reaction {
 
+// Base struct for fields (empty base class)
+struct FieldStructBase {};
+
 // Struct to hold metadata and value for a field identity
-template <typename MetaTypePtr, typename Type>
+template <typename Type>
 struct FieldIdentity {
     // Constructor to initialize metadata pointer and value
     template <typename T>
-    FieldIdentity(MetaTypePtr *ptr, T &&t) :
+    FieldIdentity(FieldStructBase *ptr, T &&t) :
         metaPtr(ptr), value(std::forward<T>(t)) {
     }
 
-    MetaTypePtr *metaPtr; // Pointer to metadata
-    Type value;           // Field value
+    FieldStructBase *metaPtr; // Pointer to metadata
+    Type value;               // Field value
 };
-
-// Template deduction guide for FieldIdentity
-template <typename MetaTypePtr, typename U>
-FieldIdentity(MetaTypePtr, U &&) -> FieldIdentity<MetaTypePtr, std::decay_t<U>>;
-
-// Base struct for fields (empty base class)
-struct FieldStructBase {};
 
 // Types to differentiate between simple and complex expressions
 struct SimpleExpr {};
@@ -106,8 +102,8 @@ public:
 };
 
 // Specialization of Resource for SimpleExpr type and FieldIdentity type
-template <typename MetaTypePtr, typename T>
-class Resource<SimpleExpr, FieldIdentity<MetaTypePtr, T>> : public ResourceBase<SimpleExpr, T>, public ObserverFieldNode {
+template <typename T>
+class Resource<SimpleExpr, FieldIdentity<T>> : public ResourceBase<SimpleExpr, T>, public ObserverFieldNode {
 public:
     // Constructor to initialize FieldIdentity and add to the FieldGraph
     template <typename Type>

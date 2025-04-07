@@ -285,14 +285,14 @@ struct ExtractDataWeakRef<DataWeakRef<T>> {
 };
 
 // Field alias for DataWeakRef to work with DataSource
-template <typename MetaTypePtr, CompareCC SourceType>
-using Field = DataWeakRef<DataSource<AlwaysTrigger, FieldStrategy, FieldIdentity<MetaTypePtr, std::decay_t<SourceType>>>>;
+template <CompareCC SourceType>
+using Field = DataWeakRef<DataSource<AlwaysTrigger, FieldStrategy, FieldIdentity<std::decay_t<SourceType>>>>;
 
 // Function to create a Field DataSource
-template <typename MetaTypePtr, CompareCC SourceType>
-auto makeFieldSource(MetaTypePtr *meta, SourceType &&value) {
-    auto ptr = std::make_shared<DataSource<AlwaysTrigger, FieldStrategy, FieldIdentity<MetaTypePtr, std::decay_t<SourceType>>>>
-               (FieldIdentity<MetaTypePtr, std::decay_t<SourceType>>{meta, std::forward<SourceType>(value)});
+template <CompareCC SourceType>
+auto makeFieldSource(FieldStructBase *meta, SourceType &&value) {
+    auto ptr = std::make_shared<DataSource<AlwaysTrigger, FieldStrategy, FieldIdentity<std::decay_t<SourceType>>>>
+               (FieldIdentity<std::decay_t<SourceType>>{meta, std::forward<SourceType>(value)});
     FieldGraph::getInstance().addNode(ptr);
     return DataWeakRef{ptr};
 }

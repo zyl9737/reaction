@@ -260,6 +260,8 @@ private:
     std::unordered_map<ActionNodePtr, std::unordered_set<DataNodePtr>> m_actionDependents;
 };
 
+struct FieldStructBase;
+
 // FieldGraph handles field-specific operations
 class FieldGraph {
 public:
@@ -280,17 +282,17 @@ public:
     }
 
     // Add a field to the graph
-    void addField(void *meta, ObserverFieldNode *node) {
+    void addField(FieldStructBase *meta, ObserverFieldNode *node) {
         m_fieldMap[meta].insert(node);
     }
 
     // Delete a field from the graph
-    void deleteField(void *meta) {
+    void deleteField(FieldStructBase *meta) {
         m_fieldMap.erase(meta);
     }
 
     // Set the field associated with a metadata pointer
-    void setField(void *meta, DataNodePtr metaPtr) {
+    void setField(FieldStructBase *meta, DataNodePtr metaPtr) {
         for (auto node : m_fieldMap[meta]) {
             m_fieldObservers[node] = metaPtr;
         }
@@ -304,7 +306,7 @@ public:
 private:
     FieldGraph() {
     }
-    std::unordered_map<void *, std::unordered_set<ObserverFieldNode *>> m_fieldMap;
+    std::unordered_map<FieldStructBase *, std::unordered_set<ObserverFieldNode *>> m_fieldMap;
     std::unordered_map<ObserverFieldNode *, DataNodePtr> m_fieldObservers;
     std::unordered_set<FieldNodePtr> m_fieldList;
 };

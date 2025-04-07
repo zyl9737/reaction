@@ -52,8 +52,8 @@ public:
     }
 
 private:
-    reaction::Field<Person, std::string> m_name;
-    reaction::Field<Person, int> m_age;
+    reaction::Field<std::string> m_name;
+    reaction::Field<int> m_age;
 };
 
 /**

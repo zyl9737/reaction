@@ -648,8 +648,8 @@ public:
 
 private:
     // Field sources for name and age
-    reaction::Field<PersonField, std::string> m_name;
-    reaction::Field<PersonField, int> m_age;
+    reaction::Field<std::string> m_name;
+    reaction::Field<int> m_age;
     bool m_male; // Gender field
 };
 
