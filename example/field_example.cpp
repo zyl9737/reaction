@@ -7,18 +7,18 @@ class Person : public reaction::FieldStructBase {
 public:
     // Constructor initializing person data
     Person(const std::string &name, int age) :
-        m_name(reaction::makeFieldSource(this, name)),
-        m_age(reaction::makeFieldSource(this, age)) {
+        m_name(reaction::field(this, name)),
+        m_age(reaction::field(this, age)) {
     }
 
     Person(const Person &p) :
-        m_name(reaction::makeFieldSource(this, p.m_name.get())),
-        m_age(reaction::makeFieldSource(this, p.m_age.get())) {
+        m_name(reaction::field(this, p.m_name.get())),
+        m_age(reaction::field(this, p.m_age.get())) {
     }
 
     Person(Person &&p) :
-        m_name(reaction::makeFieldSource(this, p.m_name.get())),
-        m_age(reaction::makeFieldSource(this, p.m_age.get())) {
+        m_name(reaction::field(this, p.m_name.get())),
+        m_age(reaction::field(this, p.m_age.get())) {
     }
 
     // Overloading equality operator for comparison
@@ -64,18 +64,17 @@ private:
  */
 void personFieldExample() {
     // Create a reactive person instance
-    auto person1 = reaction::makeMetaDataSource(Person{"Alice", 30});
-    auto person2 = reaction::makeMetaDataSource(Person{"Jack", 20});
+    auto person1 = reaction::meta(Person{"Alice", 30});
+    auto person2 = reaction::meta(Person{"Jack", 20});
 
     // Create a computed greeting message
-    auto ds = reaction::makeVariableDataSource(
+    auto ds = reaction::data(
         [](const auto &p1, const auto &p2) {
             std::cout << "Person1 : " << p1.getInfo() << " Person2 : " << p2.getInfo() << '\n';
             return true;
         },
         person1, person2);
-
-    // Update person's name and increment counter
+    // Update person's name and age
     person1->setName("Alice Johnson");
     person1->setAge(37);
 

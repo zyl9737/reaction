@@ -335,6 +335,31 @@ public:
         return this->shared_from_this();
     }
 
+protected:
+    bool updateObservers(bool &repeat, std::function<void(bool)> &&f, auto &&...args) {
+        auto shared_this = getShared();
+        ObserverGraph::getInstance().resetNode(shared_this);
+        if (!(ObserverGraph::getInstance().addObserver(repeat, f, shared_this, args.getShared()) && ...)) {
+            ObserverGraph::getInstance().resetNode(shared_this);
+            return false;
+        }
+        return true;
+    }
+
+    void updateOneObserver(bool &repeat, std::function<void(bool)> &&f, DataNodePtr node) {
+        auto shared_this = getShared();
+        ObserverGraph::getInstance().addObserver(repeat, f, shared_this, node);
+    }
+
+    void notify(DataNodePtr node, bool changed) {
+        for (auto &[observer, fun] : ObserverGraph::getInstance().getDataObserverList(node)) {
+            std::invoke(fun, changed);
+        }
+        for (auto &[observer, fun] : ObserverGraph::getInstance().getActionObserverList(node)) {
+            std::invoke(fun, changed);
+        }
+    }
+
 private:
     std::string m_name;
 };
@@ -347,24 +372,7 @@ public:
 protected:
     // Notify observers about changes
     void notifyObservers(bool changed = true) {
-        DataNodePtr shared_this = getShared();
-        for (auto &[observer, fun] : ObserverGraph::getInstance().getDataObserverList(shared_this)) {
-            std::invoke(fun, changed);
-        }
-        for (auto &[observer, fun] : ObserverGraph::getInstance().getActionObserverList(shared_this)) {
-            std::invoke(fun, changed);
-        }
-    }
-
-    // Update observers with the new state
-    bool updateObservers(bool &repeat, std::function<void(bool)> &&f, auto &&...args) {
-        DataNodePtr shared_this = getShared();
-        ObserverGraph::getInstance().resetNode(shared_this);
-        if (!(ObserverGraph::getInstance().addObserver(repeat, f, shared_this, args.getShared()) && ...)) {
-            ObserverGraph::getInstance().resetNode(shared_this);
-            return false;
-        }
-        return true;
+        notify(getShared(), changed);
     }
 };
 
@@ -372,18 +380,6 @@ protected:
 class ObserverActionNode : public ObserverBase<ObserverActionNode> {
 public:
     using SourceType = ActionNode;
-
-protected:
-    // Update observers for action nodes
-    bool updateObservers(bool &repeat, std::function<void(bool)> f, auto &&...args) {
-        ActionNodePtr shared_this = getShared();
-        ObserverGraph::getInstance().resetNode(shared_this);
-        if (!(ObserverGraph::getInstance().addObserver(repeat, f, shared_this, args.getShared()) && ...)) {
-            ObserverGraph::getInstance().resetNode(shared_this);
-            return false;
-        }
-        return true;
-    }
 };
 
 // ObserverFieldNode handles field node-specific observers
@@ -394,13 +390,7 @@ public:
 protected:
     // Notify observers for field nodes
     void notifyObservers(bool changed = true) {
-        auto metaPtr = FieldGraph::getInstance().getMeta(this);
-        for (auto &[observer, fun] : ObserverGraph::getInstance().getDataObserverList(metaPtr)) {
-            std::invoke(fun, changed);
-        }
-        for (auto &[observer, fun] : ObserverGraph::getInstance().getActionObserverList(metaPtr)) {
-            std::invoke(fun, changed);
-        }
+        notify(FieldGraph::getInstance().getMeta(this), changed);
     }
 };
 

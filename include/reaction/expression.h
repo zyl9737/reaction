@@ -38,6 +38,7 @@ class Expression : public Resource<ComplexExpr, ReturnType<Fun, Args...>>, publi
 public:
     using ValueType = ReturnType<Fun, Args...>;
 
+protected:
     // Sets the source data for the expression and updates the functor
     template <typename F, typename... A>
     bool setSource(F &&f, A &&...args) {
@@ -70,7 +71,11 @@ public:
         return true;
     }
 
-protected:
+    void updateOneOb(DataNodePtr node) {
+        bool repeat = false;
+        this->updateOneObserver(repeat, [this](bool changed) { this->valueChanged(changed); }, node);
+    }
+
     // Evaluates the functor and returns its result
     auto evaluate() const -> std::conditional_t<std::is_void_v<ValueType>, void, ValueType> {
         if constexpr (std::is_void_v<ValueType>) {
@@ -101,10 +106,13 @@ protected:
 
 private:
     std::function<ValueType()> m_fun; // Functor for evaluation
+
+    template <TriggerCC Trigger, InvalidCC Invalid, typename F, typename... A>
+    friend auto data(F &&fun, A &&...args);
 };
 
 // Specialized Expression class template (for simple value-based expressions)
-template <typename TriggerPolicy, typename Type>
+template <typename TriggerPolicy, UninvocaCC Type>
 class Expression<TriggerPolicy, Type> : public Resource<SimpleExpr, std::decay_t<Type>> {
 public:
     using Resource<SimpleExpr, std::decay_t<Type>>::Resource;

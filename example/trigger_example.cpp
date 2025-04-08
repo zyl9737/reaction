@@ -9,12 +9,12 @@
  */
 void triggerExample() {
     // Create primary data source
-    auto stockPrice = reaction::makeMetaDataSource(100.0);
+    auto stockPrice = reaction::meta(100.0);
     stockPrice.setName("Stock Price");
 
     // Value change trigger example
     int valueChangeCount = 0;
-    auto valueChangeDS = reaction::makeVariableDataSource<reaction::ValueChangeTrigger>(
+    auto valueChangeDS = reaction::data<reaction::ValueChangeTrigger>(
         [&valueChangeCount](double price) {
             valueChangeCount++;
             return price * 1.1; // Calculate 10% price increase
@@ -23,7 +23,7 @@ void triggerExample() {
 
     // Threshold trigger example
     int thresholdCount = 0;
-    auto thresholdDS = reaction::makeVariableDataSource<reaction::ThresholdTrigger>(
+    auto thresholdDS = reaction::data<reaction::ThresholdTrigger>(
         [&thresholdCount](double price) {
             thresholdCount++;
             return price > 105.0 ? "Sell" : "Hold";

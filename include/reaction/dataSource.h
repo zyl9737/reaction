@@ -7,6 +7,19 @@
 
 namespace reaction {
 
+static thread_local bool reg_flg = false;
+static thread_local std::function<void(DataNodePtr)> reg_fun;
+
+struct RegGuard {
+    RegGuard() {
+        reg_flg = false;
+    }
+    ~RegGuard() {
+        reg_flg = false;
+        reg_fun = nullptr;
+    }
+};
+
 // Trait to determine the expression type for DataSource
 template <typename... Args>
 struct SourceTraits {
@@ -44,6 +57,13 @@ public:
     // Close the DataSource and remove it from the observer graph
     void close() {
         ObserverGraph::getInstance().closeNode(this->getShared());
+    }
+
+    template <typename Trigger, typename Invalid, typename T, typename... A>
+    auto operator+(const DataSource<Trigger, Invalid, T, A...> &data)
+        requires(!ConstCC<Type>)
+    {
+        return get() + data.get();
     }
 
     // Assignment operator to update the value and notify observers
@@ -139,7 +159,6 @@ private:
     // Friend class to allow access to private methods for weak reference management
     template <typename T>
     friend class DataWeakRef;
-
     // Atomic counter for weak references
     std::atomic<int> m_weakRefCount{0};
 };
@@ -205,6 +224,11 @@ public:
 
     // Dereference operator
     DataType &operator*() const {
+        if constexpr (!std::is_same_v<typename DataType::InvStrategy, FieldStrategy>) {
+            if (reg_flg && !m_weakPtr.expired()) {
+                std::invoke(reg_fun, m_weakPtr.lock()->getShared());
+            }
+        }
         return *getPtr();
     }
 
@@ -290,7 +314,7 @@ using Field = DataWeakRef<DataSource<AlwaysTrigger, FieldStrategy, FieldIdentity
 
 // Function to create a Field DataSource
 template <CompareCC SourceType>
-auto makeFieldSource(FieldStructBase *meta, SourceType &&value) {
+auto field(FieldStructBase *meta, SourceType &&value) {
     auto ptr = std::make_shared<DataSource<AlwaysTrigger, FieldStrategy, FieldIdentity<std::decay_t<SourceType>>>>
                (FieldIdentity<std::decay_t<SourceType>>{meta, std::forward<SourceType>(value)});
     FieldGraph::getInstance().addNode(ptr);
@@ -299,7 +323,7 @@ auto makeFieldSource(FieldStructBase *meta, SourceType &&value) {
 
 // Function to create a constant DataSource
 template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectFailureStrategy, typename SourceType>
-auto makeConstantDataSource(SourceType &&value) {
+auto constMeta(SourceType &&value) {
     auto ptr = std::make_shared<DataSource<TriggerPolicy, InvalidStrategy, const std::decay_t<SourceType>>>(std::forward<SourceType>(value));
     ObserverGraph::getInstance().addNode(ptr);
     return DataWeakRef{ptr};
@@ -307,7 +331,7 @@ auto makeConstantDataSource(SourceType &&value) {
 
 // Function to create a meta DataSource
 template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectFailureStrategy, CompareCC SourceType>
-auto makeMetaDataSource(SourceType &&value) {
+auto meta(SourceType &&value) {
     auto ptr = std::make_shared<DataSource<TriggerPolicy, InvalidStrategy, std::decay_t<SourceType>>>(std::forward<SourceType>(value));
     if constexpr (HasFieldCC<std::decay_t<SourceType>>) {
         ptr->setField();
@@ -317,18 +341,25 @@ auto makeMetaDataSource(SourceType &&value) {
 }
 
 // Function to create a variable DataSource
-template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectFailureStrategy, typename Fun, ArgSizeOverZeroCC... Args>
-auto makeVariableDataSource(Fun &&fun, Args &&...args) {
+template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectFailureStrategy, typename Fun, typename... Args>
+auto data(Fun &&fun, Args &&...args) {
     auto ptr = std::make_shared<DataSource<TriggerPolicy, InvalidStrategy, Fun, typename ExtractDataWeakRef<std::decay_t<Args>>::Type...>>();
     ObserverGraph::getInstance().addNode(ptr);
+    RegGuard guard;
+    if constexpr (!ArgSizeOverZeroCC<Args...>) {
+        reg_flg = true;
+        reg_fun = [ptr](DataNodePtr node) {
+            ptr->updateOneOb(node);
+        };
+    }
     ptr->set(std::forward<Fun>(fun), std::forward<Args>(args)...);
     return DataWeakRef{ptr};
 }
 
 // Function to create an action DataSource
-template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectFailureStrategy, typename Fun, ArgSizeOverZeroCC... Args>
-auto makeActionSource(Fun &&fun, Args &&...args) {
-    return makeVariableDataSource<TriggerPolicy, InvalidStrategy>(std::forward<Fun>(fun), std::forward<Args>(args)...);
+template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectFailureStrategy, typename Fun, typename... Args>
+auto action(Fun &&fun, Args &&...args) {
+    return data<TriggerPolicy, InvalidStrategy>(std::forward<Fun>(fun), std::forward<Args>(args)...);
 }
 
 } // namespace reaction

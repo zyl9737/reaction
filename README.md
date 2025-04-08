@@ -44,19 +44,19 @@ A header-only reactive programming framework for modern C++ (C++20 required)
  */
 void basicExample() {
     // Create primary data sources
-    auto temperature = reaction::makeMetaDataSource(25.0);
-    auto humidity = reaction::makeMetaDataSource(60.0);
-    
+    auto temperature = reaction::meta(25.0);
+    auto humidity = reaction::meta(60.0);
+
     // Create computed data source (temperature + humidity)
-    auto tempHumidityIndex = reaction::makeVariableDataSource(
+    auto tempHumidityIndex = reaction::data(
         [](double temp, double hum) {
             return temp + hum * 0.1;  // Simple temperature-humidity index calculation
         },
         temperature, humidity
     );
-    
+
     // Create final display string
-    auto displayStr = reaction::makeVariableDataSource(
+    auto displayStr = reaction::data(
         [](double thi) {
             return "Current THI: " + std::to_string(thi);
         },
@@ -64,14 +64,14 @@ void basicExample() {
     );
 
     // Create final display action
-    auto displayAction = reaction::makeActionSource(
+    auto displayAction = reaction::action(
         [](double thi) {
             std::cout << "Action Trigger, THI = " << thi << std::endl;
         },
         tempHumidityIndex);
-    
+
     std::cout << displayStr.get() << std::endl;  // Initial value
-    
+
     // Update temperature data
     *temperature = 30.0;                        // Action Trigger
     std::cout << displayStr.get() << std::endl; // Automatically updated
