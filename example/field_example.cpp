@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2025 Lummy
+ *
+ * This software is released under the MIT License.
+ * See the LICENSE file in the project root for full details.
+ */
+
 #include "reaction/dataSource.h"
 #include <iostream>
 #include <string>
@@ -64,11 +71,11 @@ private:
  */
 void personFieldExample() {
     // Create a reactive person instance
-    auto person1 = reaction::meta(Person{"Alice", 30});
-    auto person2 = reaction::meta(Person{"Jack", 20});
+    auto person1 = reaction::var(Person{"Alice", 30});
+    auto person2 = reaction::var(Person{"Jack", 20});
 
     // Create a computed greeting message
-    auto ds = reaction::data(
+    auto ds = reaction::calc(
         [](const auto &p1, const auto &p2) {
             std::cout << "Person1 : " << p1.getInfo() << " Person2 : " << p2.getInfo() << '\n';
             return true;

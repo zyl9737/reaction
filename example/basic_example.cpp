@@ -1,51 +1,41 @@
-#include "reaction/dataSource.h"
-#include <iostream>
-#include <string>
-
-/**
- * Basic example demonstrating fundamental operations of reactive data sources
- * 1. Creating data sources
- * 2. Building data dependencies
- * 3. Reacting to data changes
+/*
+ * Copyright (c) 2025 Lummy
+ *
+ * This software is released under the MIT License.
+ * See the LICENSE file in the project root for full details.
  */
-void basicExample() {
-    // Create primary data sources
-    auto temperature = reaction::meta(25.0);
-    auto humidity = reaction::meta(60.0);
 
-    // Create computed data source (temperature + humidity)
-    auto tempHumidityIndex = reaction::data(
-        [](double temp, double hum) {
-            return temp + hum * 0.1; // Simple temperature-humidity index calculation
-        },
-        temperature, humidity);
-
-    // Create final display string
-    auto displayStr = reaction::data(
-        [](double thi) {
-            return "Current THI: " + std::to_string(thi);
-        },
-        tempHumidityIndex);
-
-    // Create final display action
-    auto displayAction = reaction::action(
-        [](double thi) {
-            std::cout << "Action Trigger, THI = " << thi << std::endl;
-        },
-        tempHumidityIndex);
-
-    std::cout << displayStr.get() << std::endl; // Initial value
-
-    // Update temperature data
-    *temperature = 30.0;                        // Action Trigger
-    std::cout << displayStr.get() << std::endl; // Automatically updated
-
-    // Update humidity data
-    *humidity = 70.0;                           // Action Trigger
-    std::cout << displayStr.get() << std::endl; // Automatically updated
-}
+#include <reaction/dataSource.h>
+#include <iostream>
+#include <iomanip>
 
 int main() {
-    basicExample();
+    using namespace reaction;
+
+    // 1. Reactive variables for stock prices
+    auto buyPrice = var(100.0);      // Price at which stock was bought
+    auto currentPrice = var(105.0);  // Current market price
+
+    // 2. Use 'calc' to compute profit or loss amount
+    auto profit = calc([=]() {
+        return currentPrice() - buyPrice();
+    });
+
+    // 3. Use 'expr' to compute percentage gain/loss
+    auto profitPercent = expr((currentPrice - buyPrice) / buyPrice * 100);
+
+    // 4. Use 'action' to print the log whenever values change
+    auto logger = action([=]() {
+        std::cout << std::fixed << std::setprecision(2);
+        std::cout << "[Stock Update] Current Price: $" << currentPrice()
+                  << ", Profit: $" << profit()
+                  << " (" << profitPercent() << "%)" << std::endl;
+    });
+
+    // Simulate price changes
+    currentPrice.value(110.0);  // Stock price increases
+    currentPrice.value(95.0);   // Stock price drops
+    *buyPrice = 90.0;           // Buy price adjusted
+
     return 0;
 }

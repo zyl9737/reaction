@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2025 Lummy
+ *
+ * This software is released under the MIT License.
+ * See the LICENSE file in the project root for full details.
+ */
+
 #ifndef REACTION_CONCEPT_H
 #define REACTION_CONCEPT_H
 #include <type_traits>
@@ -15,8 +22,8 @@ struct AnyType {
 };
 
 template <typename T>
-concept TriggerCC = requires(T t, bool trigger) {
-    { t.checkTrigger(trigger) } -> std::same_as<bool>;
+concept TriggerCC = requires(T t) {
+    { t.checkTrigger() } -> std::same_as<bool>;
 };
 
 struct DataNode;
@@ -63,26 +70,64 @@ concept InvalidCC = requires(T t) {
 };
 
 template <typename T>
-concept ConstCC = requires { requires std::is_const_v<T>; };
+concept ConstCC = std::is_const_v<T>;
 
 template <typename T>
-concept InvocaCC = requires { requires std::is_invocable_v<T>; };
+concept InvocaCC = std::is_invocable_v<std::decay_t<T>>;
 
 template <typename T>
-concept UninvocaCC = requires { requires !InvocaCC<T>; };
+concept VoidCC = std::is_void_v<T>;
+
+template <typename T>
+concept UninvocaCC = !InvocaCC<T>;
 
 template <typename... Args>
-concept ArgSizeOverZeroCC = requires { requires sizeof...(Args) > 0; };
+concept ArgSizeOverZeroCC = sizeof...(Args) > 0;
 
 struct FieldStructBase;
 template <typename T>
-concept HasFieldCC =
-    requires { requires std::is_base_of_v<FieldStructBase, T>; };
+concept HasFieldCC = std::is_base_of_v<FieldStructBase, T>;
 
 template <typename T>
 concept CompareCC = requires(T &a, T &b) {
     { a == b } -> std::convertible_to<bool>;
 };
+
+template <typename Op, typename L, typename R>
+class BinaryOpExpr;
+
+template <typename T>
+struct is_binary_op_expr : std::false_type {};
+
+template <typename Op, typename L, typename R>
+struct is_binary_op_expr<BinaryOpExpr<Op, L, R>> : std::true_type {};
+
+template <typename T>
+concept IsBinaryOpExprCC = is_binary_op_expr<T>::value;
+
+template <typename T>
+class DataWeakRef;
+
+template <typename T>
+struct is_data_weak_ref : std::false_type {
+    using Type = T;
+};
+
+template <typename T>
+struct is_data_weak_ref<DataWeakRef<T>> : std::true_type {
+    using Type = T;
+};
+
+template <typename L, typename R>
+concept CustomOpCC =
+    is_data_weak_ref<std::decay_t<L>>::value ||
+    is_data_weak_ref<std::decay_t<R>>::value ||
+    is_binary_op_expr<std::decay_t<L>>::value ||
+    is_binary_op_expr<std::decay_t<R>>::value;
+
+struct LastValStrategy;
+template <typename T>
+concept VarInvalidCC = InvalidCC<T> && !std::is_same_v<T, LastValStrategy>;
 
 } // namespace reaction
 

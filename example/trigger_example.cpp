@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2025 Lummy
+ *
+ * This software is released under the MIT License.
+ * See the LICENSE file in the project root for full details.
+ */
+
 #include "reaction/dataSource.h"
 #include <iostream>
 
@@ -9,12 +16,12 @@
  */
 void triggerExample() {
     // Create primary data source
-    auto stockPrice = reaction::meta(100.0);
+    auto stockPrice = reaction::var(100.0);
     stockPrice.setName("Stock Price");
 
     // Value change trigger example
     int valueChangeCount = 0;
-    auto valueChangeDS = reaction::data<reaction::ValueChangeTrigger>(
+    auto valueChangeDS = reaction::calc<reaction::ValueChangeTrigger>(
         [&valueChangeCount](double price) {
             valueChangeCount++;
             return price * 1.1; // Calculate 10% price increase
@@ -23,7 +30,7 @@ void triggerExample() {
 
     // Threshold trigger example
     int thresholdCount = 0;
-    auto thresholdDS = reaction::data<reaction::ThresholdTrigger>(
+    auto thresholdDS = reaction::calc<reaction::ThresholdTrigger>(
         [&thresholdCount](double price) {
             thresholdCount++;
             return price > 105.0 ? "Sell" : "Hold";

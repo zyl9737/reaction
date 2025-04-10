@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2025 Lummy
+ *
+ * This software is released under the MIT License.
+ * See the LICENSE file in the project root for full details.
+ */
+
 #ifndef REACTION_DATASOURCE_H
 #define REACTION_DATASOURCE_H
 
@@ -7,8 +14,8 @@
 
 namespace reaction {
 
-static thread_local bool reg_flg = false;
-static thread_local std::function<void(DataNodePtr)> reg_fun;
+inline thread_local bool reg_flg = false;
+inline thread_local std::function<void(DataNodePtr)> reg_fun;
 
 struct RegGuard {
     RegGuard() {
@@ -38,6 +45,166 @@ struct SourceTraits<DataSource<TriggerPolicy, InvalidStrategy, Type, Args...>> {
     using ExprType = Expression<TriggerPolicy, Type, Args...>;
 };
 
+template <typename DataType>
+class DataWeakRef {
+public:
+    using InvStrategy = typename DataType::InvStrategy;
+    using ValueType = typename DataType::ExprType::ValueType;
+
+    // Constructor: increases weak reference count
+    explicit DataWeakRef(DataType *ptr) :
+        m_rawPtr(ptr) {
+        if (m_rawPtr) {
+            m_rawPtr->addWeakRef(this, m_cb); // Increment weak reference count in DataType
+        }
+    }
+
+    // Destructor: decreases weak reference count
+    ~DataWeakRef() {
+        if (m_rawPtr) {
+            m_rawPtr->releaseWeakRef(this); // Decrement weak reference count in DataType
+        }
+    }
+
+    // Copy constructor: increases weak reference count
+    DataWeakRef(const DataWeakRef &other) :
+        m_rawPtr(other.m_rawPtr) {
+        if (m_rawPtr) {
+            m_rawPtr->addWeakRef(this, m_cb); // Increment weak reference count in DataType
+        }
+    }
+
+    // Move constructor: transfers ownership, nullifies the source pointer
+    DataWeakRef(DataWeakRef &&other) noexcept :
+        m_rawPtr(other.m_rawPtr) {
+        other.m_rawPtr = nullptr; // Nullify the moved-from object
+    }
+
+    // Copy assignment: increases weak reference count after releasing current reference
+    DataWeakRef &operator=(const DataWeakRef &other) noexcept {
+        if (this != &other) {
+            if (m_rawPtr) {
+                m_rawPtr->releaseWeakRef(this); // Decrement weak reference count
+            }
+            m_rawPtr = other.m_rawPtr;
+            if (m_rawPtr) {
+                m_rawPtr->addWeakRef(this, m_cb); // Increment weak reference count
+            }
+        }
+        return *this;
+    }
+
+    // Move assignment: transfers ownership, nullifies the source pointer
+    DataWeakRef &operator=(DataWeakRef &&other) noexcept {
+        if (this != &other) {
+            if (m_rawPtr) {
+                m_rawPtr->releaseWeakRef(this); // Decrement weak reference count
+            }
+            m_rawPtr = other.m_rawPtr;
+            other.m_rawPtr = nullptr; // Nullify the moved-from object
+        }
+        return *this;
+    }
+
+    // Arrow operator: accesses raw pointer's members
+    auto operator->() const {
+        return getPtr()->getRaw();
+    }
+
+    auto operator()() const {
+        if constexpr (!std::is_same_v<typename DataType::InvStrategy, FieldStrategy>) {
+            if (reg_flg && m_rawPtr) {
+                std::invoke(reg_fun, m_rawPtr->getShared()); // Call registration function
+            }
+        }
+        return get();
+    }
+
+    // Dereference operator: returns the underlying object
+    DataType &operator*() const {
+        return *getPtr(); // Dereference the raw pointer
+    }
+
+    // Explicit conversion to bool: checks if the raw pointer is valid
+    explicit operator bool() const {
+        return m_rawPtr != nullptr; // Returns true if the pointer is not null
+    }
+
+    // Getter functions for accessing data from the DataSource
+    auto get() const
+        requires DataSourceCC<DataType>
+    {
+        return getPtr()->getValue(); // Get the value of the data source
+    }
+
+    auto getUpdate() const
+        requires DataSourceCC<DataType>
+    {
+        return getPtr()->evaluate(); // Get the updated value of the data source
+    }
+
+    auto getRaw() const
+        requires DataSourceCC<DataType>
+    {
+        return getPtr()->getRaw(); // Get the raw value of the data source
+    }
+
+    auto &getRef() const
+        requires DataSourceCC<DataType>
+    {
+        return getPtr()->getRef(); // Get the reference to the data source
+    }
+
+    auto getShared() {
+        return getPtr()->getShared(); // Get a shared pointer to the data source
+    }
+
+    template <typename T>
+    void value(T &&t) {
+        getPtr()->value(std::forward<T>(t));
+    }
+
+    template <typename F, typename... A>
+    bool set(F &&f, A &&...args) {
+        return getPtr()->set(std::forward<F>(f), std::forward<A>(args)...); // Set value in the data source
+    }
+
+    // Set a threshold for the source
+    template <typename F, typename... A>
+    void setThreshold(F &&f, A &&...args) {
+        getPtr()->setThreshold(std::forward<F>(f), std::forward<A>(args)...); // Set threshold for the data source
+    }
+
+    // Close the data source
+    void close() {
+        getPtr()->close(); // Close the data source
+    }
+
+    // Set and get the name of the data source
+    void setName(const std::string &name) {
+        getPtr()->setName(name); // Set the name of the data source
+    }
+
+    std::string getName() const {
+        return getPtr()->getName(); // Get the name of the data source
+    }
+
+private:
+    // Helper function to safely access the raw pointer, throws if null
+    DataType *getPtr() const {
+        if (!m_rawPtr) {
+            throw std::runtime_error("Null weak pointer access"); // Throws if the pointer is null
+        }
+        return m_rawPtr; // Returns the raw pointer
+    }
+
+    // Raw pointer to the DataSource object
+    DataType *m_rawPtr = nullptr; // Initialize the pointer to null
+    std::function<void()> m_cb = [this]() {
+        m_rawPtr = nullptr;
+    };
+};
+
 // DataSource class template that handles the value, observers, and invalidation strategies
 template <typename TriggerPolicy, typename InvalidStrategy, typename Type, typename... Args>
 class DataSource : public SourceTraits<DataSource<TriggerPolicy, InvalidStrategy, Type, Args...>>::ExprType,
@@ -48,10 +215,34 @@ public:
     using InvStrategy = InvalidStrategy;
     using ExprType::ExprType; // Inherit constructors from ExprType
 
+    ~DataSource() {
+        notifyDestruction();
+    }
+
     // Set new value and notify observers
-    template <typename T, typename... A>
-    bool set(T &&t, A &&...args) {
-        return this->setSource(std::forward<T>(t), std::forward<A>(args)...);
+    template <typename F, ArgSizeOverZeroCC... A>
+    bool set(F &&f, A &&...args) {
+        return this->setSource(std::forward<F>(f), std::forward<A>(args)...);
+    }
+
+    template <InvocaCC F>
+    bool set(F &&f) {
+        RegGuard guard;
+        reg_flg = true;
+        reg_fun = [this](DataNodePtr node) {
+            this->updateOneOb(node);
+        };
+        return this->setSource(std::forward<F>(f));
+    }
+
+    bool set() {
+        RegGuard guard;
+        reg_flg = true;
+        reg_fun = [this](DataNodePtr node) {
+            this->updateOneOb(node);
+        };
+        this->setOpExpr();
+        return true;
     }
 
     // Close the DataSource and remove it from the observer graph
@@ -71,8 +262,7 @@ public:
     DataSource &operator=(T &&t)
         requires(!ConstCC<Type>)
     {
-        this->updateValue(std::forward<T>(t));
-        this->notifyObservers(this->getValue() != t);
+        value(std::forward<T>(t));
         return *this;
     }
 
@@ -130,6 +320,14 @@ public:
         return *this;
     }
 
+    template <typename T>
+    void value(T &&t)
+        requires(!ConstCC<Type>)
+    {
+        this->updateValue(std::forward<T>(t));
+        this->notifyObservers(this->getValue() != t);
+    }
+
     // Getter functions
     auto get() const {
         return this->getValue();
@@ -145,167 +343,32 @@ public:
     }
 
 private:
+    // Friend class to allow access to private methods for weak reference management
+    template <typename T>
+    friend class DataWeakRef;
+
     // Methods for managing weak references
-    void addWeakRef() {
+    void addWeakRef(DataWeakRef<DataSource> *ptr, std::function<void()> &f) {
         m_weakRefCount++;
+        m_destructionCallbacks.insert({ptr, f});
     }
 
-    void releaseWeakRef() {
-        if (--m_weakRefCount == 0) {
+    void releaseWeakRef(DataWeakRef<DataSource> *ptr) {
+        --m_weakRefCount;
+        m_destructionCallbacks.erase(ptr);
+        if (m_weakRefCount == 0) {
             this->handleInvalid(*this);
         }
     }
 
-    // Friend class to allow access to private methods for weak reference management
-    template <typename T>
-    friend class DataWeakRef;
+    void notifyDestruction() {
+        for (auto &[ptr, cb] : m_destructionCallbacks) {
+            cb();
+        }
+    }
     // Atomic counter for weak references
     std::atomic<int> m_weakRefCount{0};
-};
-
-// DataWeakRef class template that manages weak references to DataSource objects
-template <typename DataType>
-class DataWeakRef {
-public:
-    // Type alias for the invalidation strategy of the DataSource
-    using InvStrategy = typename DataType::InvStrategy;
-
-    // Constructor that locks the weak pointer and adds a weak reference
-    DataWeakRef(std::shared_ptr<DataType> ptr) :
-        m_weakPtr(ptr) {
-        if (auto p = m_weakPtr.lock())
-            p->addWeakRef();
-    }
-
-    // Destructor that releases the weak reference
-    ~DataWeakRef() {
-        if (auto p = m_weakPtr.lock())
-            p->releaseWeakRef();
-    }
-
-    // Copy constructor, adding a weak reference
-    DataWeakRef(const DataWeakRef &other) :
-        m_weakPtr(other.m_weakPtr) {
-        if (auto p = m_weakPtr.lock())
-            p->addWeakRef();
-    }
-
-    // Move constructor
-    DataWeakRef(DataWeakRef &&other) noexcept :
-        m_weakPtr(std::move(other.m_weakPtr)) {
-    }
-
-    // Copy assignment operator, adding a weak reference
-    DataWeakRef &operator=(const DataWeakRef &other) noexcept {
-        if (this != &other) {
-            if (auto p = m_weakPtr.lock())
-                p->releaseWeakRef();
-            m_weakPtr = other.m_weakPtr;
-            if (auto p = m_weakPtr.lock())
-                p->addWeakRef();
-        }
-        return *this;
-    }
-
-    // Move assignment operator
-    DataWeakRef &operator=(DataWeakRef &&other) noexcept {
-        if (this != &other) {
-            if (auto p = m_weakPtr.lock())
-                p->releaseWeakRef();
-            m_weakPtr = std::move(other.m_weakPtr);
-        }
-        return *this;
-    }
-
-    // Arrow operator to access raw pointer
-    auto operator->() const {
-        return getPtr()->getRaw();
-    }
-
-    // Dereference operator
-    DataType &operator*() const {
-        if constexpr (!std::is_same_v<typename DataType::InvStrategy, FieldStrategy>) {
-            if (reg_flg && !m_weakPtr.expired()) {
-                std::invoke(reg_fun, m_weakPtr.lock()->getShared());
-            }
-        }
-        return *getPtr();
-    }
-
-    // Conversion to bool to check if the weak pointer is valid
-    explicit operator bool() const {
-        return !m_weakPtr.expired();
-    }
-
-    // Getter functions for the value and raw data
-    auto get() const
-        requires DataSourceCC<DataType>
-    {
-        return getPtr()->getValue();
-    }
-    auto getUpdate() const
-        requires DataSourceCC<DataType>
-    {
-        return getPtr()->evaluate();
-    }
-    auto getRaw() const
-        requires DataSourceCC<DataType>
-    {
-        return getPtr()->getRaw();
-    }
-    auto &getRef() const
-        requires DataSourceCC<DataType>
-    {
-        return getPtr()->getRef();
-    }
-    auto getShared() {
-        return getPtr()->getShared();
-    }
-
-    // Set a new value to the source
-    template <typename T, typename... A>
-    bool set(T &&t, A &&...args) {
-        return getPtr()->setSource(std::forward<T>(t), std::forward<A>(args)...);
-    }
-    // Set a threshold for the source
-    template <typename F, typename... A>
-    void setThreshold(F &&f, A &&...args) {
-        getPtr()->setThreshold(std::forward<F>(f), std::forward<A>(args)...);
-    }
-    // Close the source
-    void close() {
-        getPtr()->close();
-    }
-    // Set and get name for the source
-    void setName(const std::string &name) {
-        getPtr()->setName(name);
-    }
-    std::string getName() const {
-        return getPtr()->getName();
-    }
-
-private:
-    // Helper function to get the shared pointer from weak pointer
-    std::shared_ptr<DataType> getPtr() const {
-        if (m_weakPtr.expired())
-            throw std::runtime_error("Null weak pointer");
-        return m_weakPtr.lock();
-    }
-
-    // Weak pointer to the DataSource
-    std::weak_ptr<DataType> m_weakPtr;
-};
-
-// Helper trait to extract the underlying type from DataWeakRef
-template <typename T>
-struct ExtractDataWeakRef {
-    using Type = T;
-};
-
-// Specialization for DataWeakRef to extract the underlying type
-template <typename T>
-struct ExtractDataWeakRef<DataWeakRef<T>> {
-    using Type = T;
+    std::unordered_map<DataWeakRef<DataSource> *, std::function<void()>> m_destructionCallbacks;
 };
 
 // Field alias for DataWeakRef to work with DataSource
@@ -318,48 +381,49 @@ auto field(FieldStructBase *meta, SourceType &&value) {
     auto ptr = std::make_shared<DataSource<AlwaysTrigger, FieldStrategy, FieldIdentity<std::decay_t<SourceType>>>>
                (FieldIdentity<std::decay_t<SourceType>>{meta, std::forward<SourceType>(value)});
     FieldGraph::getInstance().addNode(ptr);
-    return DataWeakRef{ptr};
+    return DataWeakRef{ptr.get()};
 }
 
 // Function to create a constant DataSource
-template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectFailureStrategy, typename SourceType>
-auto constMeta(SourceType &&value) {
+template <TriggerCC TriggerPolicy = AlwaysTrigger, VarInvalidCC InvalidStrategy = DirectCloseStrategy, typename SourceType>
+auto constVar(SourceType &&value) {
     auto ptr = std::make_shared<DataSource<TriggerPolicy, InvalidStrategy, const std::decay_t<SourceType>>>(std::forward<SourceType>(value));
     ObserverGraph::getInstance().addNode(ptr);
-    return DataWeakRef{ptr};
+    return DataWeakRef{ptr.get()};
 }
 
-// Function to create a meta DataSource
-template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectFailureStrategy, CompareCC SourceType>
-auto meta(SourceType &&value) {
+// Function to create a var DataSource
+template <TriggerCC TriggerPolicy = AlwaysTrigger, VarInvalidCC InvalidStrategy = DirectCloseStrategy, CompareCC SourceType>
+auto var(SourceType &&value) {
     auto ptr = std::make_shared<DataSource<TriggerPolicy, InvalidStrategy, std::decay_t<SourceType>>>(std::forward<SourceType>(value));
     if constexpr (HasFieldCC<std::decay_t<SourceType>>) {
         ptr->setField();
     }
     ObserverGraph::getInstance().addNode(ptr);
-    return DataWeakRef{ptr};
+    return DataWeakRef{ptr.get()};
+}
+
+template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectCloseStrategy, IsBinaryOpExprCC OpExpr>
+auto expr(OpExpr &&opExpr) {
+    auto ptr = std::make_shared<DataSource<TriggerPolicy, InvalidStrategy, std::decay_t<OpExpr>>>(std::forward<OpExpr>(opExpr));
+    ObserverGraph::getInstance().addNode(ptr);
+    ptr->set();
+    return DataWeakRef{ptr.get()};
 }
 
 // Function to create a variable DataSource
-template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectFailureStrategy, typename Fun, typename... Args>
-auto data(Fun &&fun, Args &&...args) {
-    auto ptr = std::make_shared<DataSource<TriggerPolicy, InvalidStrategy, Fun, typename ExtractDataWeakRef<std::decay_t<Args>>::Type...>>();
+template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectCloseStrategy, typename Fun, typename... Args>
+auto calc(Fun &&fun, Args &&...args) {
+    auto ptr = std::make_shared<DataSource<TriggerPolicy, InvalidStrategy, Fun, typename is_data_weak_ref<std::decay_t<Args>>::Type...>>();
     ObserverGraph::getInstance().addNode(ptr);
-    RegGuard guard;
-    if constexpr (!ArgSizeOverZeroCC<Args...>) {
-        reg_flg = true;
-        reg_fun = [ptr](DataNodePtr node) {
-            ptr->updateOneOb(node);
-        };
-    }
     ptr->set(std::forward<Fun>(fun), std::forward<Args>(args)...);
-    return DataWeakRef{ptr};
+    return DataWeakRef{ptr.get()};
 }
 
 // Function to create an action DataSource
-template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectFailureStrategy, typename Fun, typename... Args>
+template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectCloseStrategy, typename Fun, typename... Args>
 auto action(Fun &&fun, Args &&...args) {
-    return data<TriggerPolicy, InvalidStrategy>(std::forward<Fun>(fun), std::forward<Args>(args)...);
+    return calc<TriggerPolicy, InvalidStrategy>(std::forward<Fun>(fun), std::forward<Args>(args)...);
 }
 
 } // namespace reaction

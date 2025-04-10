@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2025 Lummy
+ *
+ * This software is released under the MIT License.
+ * See the LICENSE file in the project root for full details.
+ */
+
 #ifndef REACTION_RESOURCE_H
 #define REACTION_RESOURCE_H
 
@@ -95,10 +102,13 @@ public:
     // Inherit constructors from ResourceBase
     using ResourceBase<ComplexExpr, T>::ResourceBase;
 
+protected:
     // Set the field in the FieldGraph
     void setField() {
         FieldGraph::getInstance().setField(this->getRawPtr(), this->getShared());
     }
+    template <TriggerCC TriggerPolicy, VarInvalidCC InvalidStrategy, CompareCC SourceType>
+    friend auto var(SourceType &&value);
 };
 
 // Specialization of Resource for SimpleExpr type and FieldIdentity type

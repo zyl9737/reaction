@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2025 Lummy
+ *
+ * This software is released under the MIT License.
+ * See the LICENSE file in the project root for full details.
+ */
+
 #include "gtest/gtest.h"
 #include "reaction/dataSource.h"
 #include <vector>
@@ -5,14 +12,14 @@
 
 // Test for basic constructor and data source creation
 TEST(TestConstructor, ReactionTest) {
-    auto a = reaction::meta(1);
-    auto b = reaction::meta(3.14);
+    auto a = reaction::var(1);
+    auto b = reaction::var(3.14);
     EXPECT_EQ(a.get(), 1);
     EXPECT_EQ(b.get(), 3.14);
 
-    auto ds = reaction::data([](int aa, double bb) { return std::to_string(aa) + std::to_string(bb); }, a, b);
+    auto ds = reaction::calc([](int aa, double bb) { return std::to_string(aa) + std::to_string(bb); }, a, b);
 
-    auto dds = reaction::data([](auto aa, auto dsds) { return std::to_string(aa) + dsds; }, a, ds);
+    auto dds = reaction::calc([](auto aa, auto dsds) { return std::to_string(aa) + dsds; }, a, ds);
 
     EXPECT_EQ(ds.get(), "13.140000");
     EXPECT_EQ(dds.get(), "113.140000");
@@ -20,36 +27,43 @@ TEST(TestConstructor, ReactionTest) {
 
 // Test common usage of variable data source
 TEST(TestCommonUse, ReactionTest) {
-    auto a = reaction::meta(1);
-    auto b = reaction::meta(3.14);
-    auto ds = reaction::data([](int aa, double bb) { return std::to_string(aa) + std::to_string(bb); }, a, b);
-    auto dds = reaction::data([](auto aa, auto dsds) { return std::to_string(aa) + dsds; }, a, ds);
-    auto simple_ds = reaction::data([=]() { return *a + (*b); });
+    auto a = reaction::var(1);
+    auto b = reaction::var(3.14);
+    auto c = reaction::var(5);
+    auto ds = reaction::calc([](int aa, double bb) { return std::to_string(aa) + std::to_string(bb); }, a, b);
+    auto dds = reaction::calc([](auto aa, auto dsds) { return std::to_string(aa) + dsds; }, a, ds);
+    auto simple_ds = reaction::calc([=]() { return a() + b(); });
+    auto expr_ds = reaction::expr(a + b);
+    auto expr_ds2 = reaction::expr(a + 1);
+    auto expr_ds3 = reaction::expr(c + a * b - 3);
 
-    *a = 2;
+    a.value(2);
     EXPECT_EQ(ds.get(), "23.140000");
     EXPECT_EQ(dds.get(), "223.140000");
     ASSERT_FLOAT_EQ(simple_ds.get(), 5.14);
+    ASSERT_FLOAT_EQ(expr_ds.get(), 5.14);
+    EXPECT_EQ(expr_ds2.get(), 3);
+    ASSERT_FLOAT_EQ(expr_ds3.get(), 8.28);
 }
 
 // Test for complex calculations with multiple dependencies
 TEST(TestComplexCal, ReactionTest) {
-    auto a = reaction::meta(1);
+    auto a = reaction::var(1);
     a.setName("a");
 
-    auto dsA = reaction::data([](int aa) { return aa; }, a);
+    auto dsA = reaction::calc([](int aa) { return aa; }, a);
     dsA.setName("dsA");
 
-    auto dsB = reaction::data([](int aa, int dsAValue) { return aa + dsAValue; }, a, dsA);
+    auto dsB = reaction::calc([](int aa, int dsAValue) { return aa + dsAValue; }, a, dsA);
     dsB.setName("dsB");
 
-    auto dsC = reaction::data([](int aa, int dsAValue, int dsBValue) { return aa + dsAValue + dsBValue; }, a, dsA, dsB);
+    auto dsC = reaction::calc([](int aa, int dsAValue, int dsBValue) { return aa + dsAValue + dsBValue; }, a, dsA, dsB);
     dsC.setName("dsC");
 
-    auto dsD = reaction::data([](int dsAValue, int dsBValue, int dsCValue) { return dsAValue + dsBValue + dsCValue; }, dsA, dsB, dsC);
+    auto dsD = reaction::calc([](int dsAValue, int dsBValue, int dsCValue) { return dsAValue + dsBValue + dsCValue; }, dsA, dsB, dsC);
     dsD.setName("dsD");
 
-    auto dsE = reaction::data([](int dsBValue, int dsCValue, int dsDValue) { return dsBValue * dsCValue + dsDValue; }, dsB, dsC, dsD);
+    auto dsE = reaction::calc([](int dsBValue, int dsCValue, int dsDValue) { return dsBValue * dsCValue + dsDValue; }, dsB, dsC, dsD);
     dsE.setName("dsE");
 
     EXPECT_EQ(dsA.get(), 1);
@@ -68,18 +82,18 @@ TEST(TestComplexCal, ReactionTest) {
 
 // Test for constant data sources (values cannot be updated)
 TEST(TestConstDataSource, ReactionTest) {
-    auto a = reaction::constMeta(1);
-    auto b = reaction::constMeta(3.14);
+    auto a = reaction::constVar(1);
+    auto b = reaction::constVar(3.14);
     // *a = 2; // This should cause a compilation error as a is constant
-    auto ds = reaction::data([](int aa, double bb) { return std::to_string(aa) + std::to_string(bb); }, a, b);
-    auto dds = reaction::data([](auto aa, auto dsds) { return std::to_string(aa) + dsds; }, a, ds);
+    auto ds = reaction::calc([](int aa, double bb) { return std::to_string(aa) + std::to_string(bb); }, a, b);
+    auto dds = reaction::calc([](auto aa, auto dsds) { return std::to_string(aa) + dsds; }, a, ds);
 }
 
 // Test for action nodes (testing side effects of actions)
 TEST(TestAction, ActionTest) {
-    auto a = reaction::meta(1);
-    auto b = reaction::meta(3.14);
-    auto ds = reaction::data([](auto aa, auto bb) { return std::to_string(aa) + std::to_string(bb); }, a, b);
+    auto a = reaction::var(1);
+    auto b = reaction::var(3.14);
+    auto ds = reaction::calc([](auto aa, auto bb) { return std::to_string(aa) + std::to_string(bb); }, a, b);
 
     int val = 10;
     auto dds = reaction::action([&val](auto aa) { val = aa; }, a);
@@ -91,19 +105,19 @@ TEST(TestAction, ActionTest) {
 
 // Test for resetting nodes and dependencies
 TEST(TestReset, ReactionTest) {
-    auto a = reaction::meta(1);
-    auto b = reaction::meta(std::string{"2"});
-    auto c = reaction::meta(std::string{"3"});
-    auto d = reaction::meta(std::string{"4"});
+    auto a = reaction::var(1);
+    auto b = reaction::var(std::string{"2"});
+    auto c = reaction::var(std::string{"3"});
+    auto d = reaction::var(std::string{"4"});
 
-    auto ds = reaction::data([](auto aa) { return std::to_string(aa); }, a);
+    auto ds = reaction::calc([](auto aa) { return std::to_string(aa); }, a);
 
-    auto dds = reaction::data([](auto bb) { return bb; }, b);
+    auto dds = reaction::calc([](auto bb) { return bb; }, b);
 
-    auto ddds = reaction::data([](auto cc) { return cc; }, c);
+    auto ddds = reaction::calc([](auto cc) { return cc; }, c);
 
     EXPECT_EQ(ddds.get(), "3");
-    ddds.set([](auto dd, auto dsds) { return dd + dsds + "set"; }, d, dds);
+    ddds.set([=]() { return d() + dds() + "set"; });
     EXPECT_EQ(ddds.get(), "42set");
     *c = "33";
     EXPECT_EQ(ddds.get(), "42set");
@@ -113,11 +127,11 @@ TEST(TestReset, ReactionTest) {
 
 // Test for self-dependency scenario (invalid)
 TEST(TestSelfDependency, ReactionTest) {
-    auto a = reaction::meta(1);
-    auto b = reaction::meta(2);
-    auto c = reaction::meta(3);
+    auto a = reaction::var(1);
+    auto b = reaction::var(2);
+    auto c = reaction::var(3);
 
-    auto dsA = reaction::data([](int aa) { return aa; }, a);
+    auto dsA = reaction::calc([](int aa) { return aa; }, a);
 
     EXPECT_EQ(dsA.set([](int aa, int dsAValue) { return aa + dsAValue; }, a, dsA),
               false); // This should fail as self-dependency is not allowed
@@ -125,16 +139,16 @@ TEST(TestSelfDependency, ReactionTest) {
 
 // Test for repeat dependencies and the number of trigger counts
 TEST(TestRepeatDependency, ReactionTest) {
-    auto a = reaction::meta(1);
-    auto b = reaction::meta(2);
-    auto c = reaction::meta(3);
+    auto a = reaction::var(1);
+    auto b = reaction::var(2);
+    auto c = reaction::var(3);
 
     int triggerCount = 0;
-    auto dsA = reaction::data([&triggerCount](int aa, int bb) {
+    auto dsA = reaction::calc([&triggerCount](int aa, int bb) {
                                                     ++triggerCount;
                                                     return aa + bb; }, a, b);
 
-    auto dsB = reaction::data([](int cc, int dsAVal) { return cc + dsAVal; }, c, dsA);
+    auto dsB = reaction::calc([](int cc, int dsAVal) { return cc + dsAVal; }, c, dsA);
 
     a.setName("a");
     b.setName("b");
@@ -156,15 +170,15 @@ TEST(TestRepeatDependency, ReactionTest) {
 
 // Test for cyclic dependencies, expecting failure
 TEST(TestCycleDependency, ReactionTest) {
-    auto a = reaction::meta(1);
-    auto b = reaction::meta(2);
-    auto c = reaction::meta(3);
+    auto a = reaction::var(1);
+    auto b = reaction::var(2);
+    auto c = reaction::var(3);
 
-    auto dsA = reaction::data([](int bb) { return bb; }, b);
+    auto dsA = reaction::calc([](int bb) { return bb; }, b);
 
-    auto dsB = reaction::data([](int cc) { return cc; }, c);
+    auto dsB = reaction::calc([](int cc) { return cc; }, c);
 
-    auto dsC = reaction::data([](int aa) { return aa; }, a);
+    auto dsC = reaction::calc([](int aa) { return aa; }, a);
 
     a.setName("a");
     b.setName("b");
@@ -184,10 +198,10 @@ TEST(TestCycleDependency, ReactionTest) {
 
 // Test for copying data sources
 TEST(TestCopy, ReactionTest) {
-    auto a = reaction::meta(1);
-    auto b = reaction::meta(3.14);
-    auto ds = reaction::data([](int aa, double bb) { return std::to_string(aa) + std::to_string(bb); }, a, b);
-    auto dds = reaction::data([](auto aa, auto dsds) { return std::to_string(aa) + dsds; }, a, ds);
+    auto a = reaction::var(1);
+    auto b = reaction::var(3.14);
+    auto ds = reaction::calc([](int aa, double bb) { return std::to_string(aa) + std::to_string(bb); }, a, b);
+    auto dds = reaction::calc([](auto aa, auto dsds) { return std::to_string(aa) + dsds; }, a, ds);
 
     auto dds_copy = dds;
     EXPECT_EQ(dds_copy.get(), "113.140000");
@@ -200,10 +214,10 @@ TEST(TestCopy, ReactionTest) {
 
 // Test for moving data sources
 TEST(TestMove, ReactionTest) {
-    auto a = reaction::meta(1);
-    auto b = reaction::meta(3.14);
-    auto ds = reaction::data([](int aa, double bb) { return std::to_string(aa) + std::to_string(bb); }, a, b);
-    auto dds = reaction::data([](auto aa, auto dsds) { return std::to_string(aa) + dsds; }, a, ds);
+    auto a = reaction::var(1);
+    auto b = reaction::var(3.14);
+    auto ds = reaction::calc([](int aa, double bb) { return std::to_string(aa) + std::to_string(bb); }, a, b);
+    auto dds = reaction::calc([](auto aa, auto dsds) { return std::to_string(aa) + dsds; }, a, ds);
 
     auto dds_copy = std::move(dds);
     EXPECT_EQ(dds_copy.get(), "113.140000");
@@ -217,15 +231,15 @@ TEST(TestMove, ReactionTest) {
 
 // Test for value change trigger
 TEST(TestValueChangeTrigger, ReactionTest) {
-    auto a = reaction::meta(1);
-    auto b = reaction::meta(3.14);
-    auto c = reaction::meta("cc");
+    auto a = reaction::var(1);
+    auto b = reaction::var(3.14);
+    auto c = reaction::var("cc");
     int triggerCountA = 0;
     int triggerCountB = 0;
-    auto ds = reaction::data([&triggerCountA](int aa, double bb) {
+    auto ds = reaction::calc([&triggerCountA](int aa, double bb) {
                                                 ++triggerCountA;
                                                 return std::to_string(aa) + std::to_string(bb); }, a, b);
-    auto dds = reaction::data<reaction::ValueChangeTrigger>([&triggerCountB](auto cc, auto dsds) {
+    auto dds = reaction::calc<reaction::ValueChangeTrigger>([&triggerCountB](auto cc, auto dsds) {
                                                                                ++triggerCountB;
                                                                                return cc + dsds; }, c, ds);
     EXPECT_EQ(triggerCountA, 1);
@@ -241,15 +255,15 @@ TEST(TestValueChangeTrigger, ReactionTest) {
 
 // Test for threshold trigger
 TEST(TestThresholdTrigger, ReactionTest) {
-    auto a = reaction::meta(1);
-    auto b = reaction::meta(2);
-    auto c = reaction::meta(3);
+    auto a = reaction::var(1);
+    auto b = reaction::var(2);
+    auto c = reaction::var(3);
     int triggerCountA = 0;
     int triggerCountB = 0;
-    auto ds = reaction::data([&triggerCountA](int aa, double bb) {
+    auto ds = reaction::calc([&triggerCountA](int aa, double bb) {
                                                 ++triggerCountA;
                                                 return aa + bb; }, a, b);
-    auto dds = reaction::data<reaction::ThresholdTrigger>([&triggerCountB](auto cc, auto dsds) {
+    auto dds = reaction::calc<reaction::ThresholdTrigger>([&triggerCountB](auto cc, auto dsds) {
                                                                              ++triggerCountB;
                                                                              return cc + dsds; }, c, ds);
     EXPECT_EQ(triggerCountA, 1);
@@ -260,7 +274,7 @@ TEST(TestThresholdTrigger, ReactionTest) {
     EXPECT_EQ(ds.get(), 4);
     EXPECT_EQ(dds.get(), 7);
 
-    dds.setThreshold([](auto cc, auto dsds) { return cc + dsds < 10; }, c, ds);
+    dds.setThreshold([=]() { return c() + ds() < 10; });
     *a = 5;
     EXPECT_EQ(triggerCountA, 3);
     EXPECT_EQ(triggerCountB, 2);
@@ -269,31 +283,31 @@ TEST(TestThresholdTrigger, ReactionTest) {
 
 // Test for closing nodes in a field source
 TEST(TestClose, ReactionTest) {
-    auto a = reaction::meta(1);
+    auto a = reaction::var(1);
     a.setName("a");
 
-    auto b = reaction::meta(2);
+    auto b = reaction::var(2);
     b.setName("b");
 
-    auto dsA = reaction::data([](int aa) { return aa; }, a);
+    auto dsA = reaction::calc([](int aa) { return aa; }, a);
     dsA.setName("dsA");
 
-    auto dsB = reaction::data([](int aa, int dsAValue) { return aa + dsAValue; }, a, dsA);
+    auto dsB = reaction::calc([](int aa, int dsAValue) { return aa + dsAValue; }, a, dsA);
     dsB.setName("dsB");
 
-    auto dsC = reaction::data([](int aa, int dsAValue, int dsBValue) { return aa + dsAValue + dsBValue; }, a, dsA, dsB);
+    auto dsC = reaction::calc([](int aa, int dsAValue, int dsBValue) { return aa + dsAValue + dsBValue; }, a, dsA, dsB);
     dsC.setName("dsC");
 
-    auto dsD = reaction::data([](int dsAValue, int dsBValue, int dsCValue) { return dsAValue + dsBValue + dsCValue; }, dsA, dsB, dsC);
+    auto dsD = reaction::calc([](int dsAValue, int dsBValue, int dsCValue) { return dsAValue + dsBValue + dsCValue; }, dsA, dsB, dsC);
     dsD.setName("dsD");
 
-    auto dsE = reaction::data([](int dsBValue, int dsCValue, int dsDValue) { return dsBValue * dsCValue + dsDValue; }, dsB, dsC, dsD);
+    auto dsE = reaction::calc([](int dsBValue, int dsCValue, int dsDValue) { return dsBValue * dsCValue + dsDValue; }, dsB, dsC, dsD);
     dsE.setName("dsE");
 
-    auto dsF = reaction::data([](int aa, int bb) { return aa + bb; }, a, b);
+    auto dsF = reaction::calc([](int aa, int bb) { return aa + bb; }, a, b);
     dsF.setName("dsF");
 
-    auto dsG = reaction::data([](int dsAValue, int dsFValue) { return dsAValue + dsFValue; }, dsA, dsF);
+    auto dsG = reaction::calc([](int dsAValue, int dsFValue) { return dsAValue + dsFValue; }, dsA, dsF);
     dsG.setName("dsG");
 
     dsA.close();
@@ -306,21 +320,21 @@ TEST(TestClose, ReactionTest) {
     EXPECT_FALSE(static_cast<bool>(dsG));
 }
 
-// Test for DirectFailureStrategy, checking if nodes are closed when invalid
+// Test for DirectCloseStrategy, checking if nodes are closed when invalid
 TEST(TestDirectFailureStrategy, ReactionTest) {
-    auto a = reaction::meta(1);
+    auto a = reaction::var(1);
     a.setName("a");
 
-    auto b = reaction::meta(2);
+    auto b = reaction::var(2);
     b.setName("b");
 
-    // Create multiple data sources
-    auto dsB = reaction::data([](auto aa) { return aa; }, a);
-    auto dsC = reaction::data([](auto aa) { return aa; }, a);
-    auto dsD = reaction::data([](auto aa) { return aa; }, a);
-    auto dsE = reaction::data([](auto aa) { return aa; }, a);
-    auto dsF = reaction::data([](auto aa) { return aa; }, a);
-    auto dsG = reaction::data([](auto aa) { return aa; }, a);
+    // Create multiple calc sources
+    auto dsB = reaction::calc([](auto aa) { return aa; }, a);
+    auto dsC = reaction::calc([](auto aa) { return aa; }, a);
+    auto dsD = reaction::calc([](auto aa) { return aa; }, a);
+    auto dsE = reaction::calc([](auto aa) { return aa; }, a);
+    auto dsF = reaction::calc([](auto aa) { return aa; }, a);
+    auto dsG = reaction::calc([](auto aa) { return aa; }, a);
     dsB.setName("dsB");
     dsC.setName("dsC");
     dsD.setName("dsD");
@@ -329,7 +343,7 @@ TEST(TestDirectFailureStrategy, ReactionTest) {
     dsG.setName("dsG");
 
     {
-        auto dsA = reaction::data([](int aa) { return aa; }, a);
+        auto dsA = reaction::calc([](int aa) { return aa; }, a);
         dsA.setName("dsA");
 
         dsB.set([](int aa, int dsAValue) { return aa + dsAValue; }, a, dsA);
@@ -345,7 +359,7 @@ TEST(TestDirectFailureStrategy, ReactionTest) {
         dsG.set([](int dsAValue, int dsFValue) { return dsAValue + dsFValue; }, dsA, dsF);
     }
 
-    // Check that invalid sources (due to DirectFailureStrategy) have been closed
+    // Check that invalid sources (due to DirectCloseStrategy) have been closed
     EXPECT_FALSE(static_cast<bool>(dsB));
     EXPECT_FALSE(static_cast<bool>(dsC));
     EXPECT_FALSE(static_cast<bool>(dsD));
@@ -354,25 +368,25 @@ TEST(TestDirectFailureStrategy, ReactionTest) {
     EXPECT_FALSE(static_cast<bool>(dsG));
 }
 
-// Test for KeepCalculateStrategy, ensuring values are recalculated even if invalid
+// Test for KeepCalcStrategy, ensuring values are recalculated even if invalid
 TEST(TestKeepCalculateStrategy, ReactionTest) {
-    auto a = reaction::meta(1);
+    auto a = reaction::var(1);
     a.setName("a");
 
-    auto b = reaction::meta(2);
+    auto b = reaction::var(2);
     b.setName("b");
 
-    auto dsB = reaction::data([](auto aa) { return aa; }, a);
-    auto dsC = reaction::data([](auto aa) { return aa; }, a);
-    auto dsD = reaction::data([](auto aa) { return aa; }, a);
-    auto dsE = reaction::data([](auto aa) { return aa; }, a);
+    auto dsB = reaction::calc([](auto aa) { return aa; }, a);
+    auto dsC = reaction::calc([](auto aa) { return aa; }, a);
+    auto dsD = reaction::calc([](auto aa) { return aa; }, a);
+    auto dsE = reaction::calc([](auto aa) { return aa; }, a);
     dsB.setName("dsB");
     dsC.setName("dsC");
     dsD.setName("dsD");
     dsE.setName("dsE");
 
     {
-        auto dsA = reaction::data<reaction::AlwaysTrigger, reaction::KeepCalculateStrategy>([](int aa) { return aa; }, a);
+        auto dsA = reaction::calc<reaction::AlwaysTrigger, reaction::KeepCalcStrategy>([](int aa) { return aa; }, a);
         dsA.setName("dsA");
 
         dsB.set([](int aa, int dsAValue) { return aa + dsAValue; }, a, dsA);
@@ -397,25 +411,25 @@ TEST(TestKeepCalculateStrategy, ReactionTest) {
     EXPECT_EQ(dsE.get(), 870);
 }
 
-// Test for UseLastValidValueStrategy, ensuring last valid value is retained when invalid
+// Test for LastValStrategy, ensuring last valid value is retained when invalid
 TEST(TestUseLastValidValueStrategy, ReactionTest) {
-    auto a = reaction::meta(1);
+    auto a = reaction::var(1);
     a.setName("a");
 
-    auto b = reaction::meta(2);
+    auto b = reaction::var(2);
     b.setName("b");
 
-    auto dsB = reaction::data([](auto aa) { return aa; }, a);
-    auto dsC = reaction::data([](auto aa) { return aa; }, a);
-    auto dsD = reaction::data([](auto aa) { return aa; }, a);
-    auto dsE = reaction::data([](auto aa) { return aa; }, a);
+    auto dsB = reaction::calc([](auto aa) { return aa; }, a);
+    auto dsC = reaction::calc([](auto aa) { return aa; }, a);
+    auto dsD = reaction::calc([](auto aa) { return aa; }, a);
+    auto dsE = reaction::calc([](auto aa) { return aa; }, a);
     dsB.setName("dsB");
     dsC.setName("dsC");
     dsD.setName("dsD");
     dsE.setName("dsE");
 
     {
-        auto dsA = reaction::data<reaction::AlwaysTrigger, reaction::UseLastValidValueStrategy>([](int aa) { return aa; }, a);
+        auto dsA = reaction::calc<reaction::AlwaysTrigger, reaction::LastValStrategy>([](int aa) { return aa; }, a);
         dsA.setName("dsA");
 
         dsB.set([](int aa, int dsAValue) { return aa + dsAValue; }, a, dsA);
@@ -479,8 +493,8 @@ struct Person {
 // Test for custom struct with reaction
 TEST(TestCustomStruct, ReactionTest) {
     Person p{18, "lummy"};
-    auto a = reaction::meta(p);
-    auto ds = reaction::data([](auto &&aa) { return aa; }, a);
+    auto a = reaction::var(p);
+    auto ds = reaction::calc([](auto &&aa) { return aa; }, a);
 }
 
 struct ProcessedData {
@@ -498,69 +512,69 @@ TEST(DataSourceStressTest, DeepDependencyChain) {
     using namespace reaction;
     using namespace std::chrono;
 
-    // Create meta-data sources
-    auto base1 = meta(1);                // Integer source
-    auto base2 = meta(2.0);              // Double source
-    auto base3 = meta(true);             // Boolean source
-    auto base4 = meta(std::string{"3"}); // String source
-    auto base5 = meta(4);                // Integer source
+    // Create var-data sources
+    auto base1 = var(1);                // Integer source
+    auto base2 = var(2.0);              // Double source
+    auto base3 = var(true);             // Boolean source
+    auto base4 = var(std::string{"3"}); // String source
+    auto base5 = var(4);                // Integer source
 
     // Layer 1: Add integer and double
-    auto layer1 = data([](int a, double b) {
+    auto layer1 = calc([](int a, double b) {
         return a + b;
     },
                                          base1, base2);
 
     // Layer 2: Multiply or divide based on the flag
-    auto layer2 = data([](double val, bool flag) {
+    auto layer2 = calc([](double val, bool flag) {
         return flag ? val * 2 : val / 2;
     },
                                          layer1, base3);
 
     // Layer 3: Convert double value to a string
-    auto layer3 = data([](double val) {
+    auto layer3 = calc([](double val) {
         return "Value:" + std::to_string(val);
     },
                                          layer2);
 
     // Layer 4: Append integer to string
-    auto layer4 = data([](const std::string &s, const std::string &s4) {
+    auto layer4 = calc([](const std::string &s, const std::string &s4) {
         return s + "_" + s4;
     },
                                          layer3, base4);
 
     // Layer 5: Get the length of the string
-    auto layer5 = data([](const std::string &s) {
+    auto layer5 = calc([](const std::string &s) {
         return s.length();
     },
                                          layer4);
 
     // Layer 6: Create a vector of double values
-    auto layer6 = data([](size_t len, int b5) {
+    auto layer6 = calc([](size_t len, int b5) {
         return std::vector<int>(len, b5);
     },
                                          layer5, base5);
 
     // Layer 7: Sum all elements in the vector
-    auto layer7 = data([](const std::vector<int> &vec) {
+    auto layer7 = calc([](const std::vector<int> &vec) {
         return std::accumulate(vec.begin(), vec.end(), 0);
     },
                                          layer6);
 
     // Layer 8: Create a ProcessedData object with checksum and info
-    auto layer8 = data([](int sum) {
+    auto layer8 = calc([](int sum) {
         return ProcessedData{"ProcessedData", static_cast<int>(sum)};
     },
                                          layer7);
 
     // Layer 9: Combine info and checksum into a string
-    auto layer9 = data([](const ProcessedData &data) {
-        return data.info + "|" + std::to_string(data.checksum);
+    auto layer9 = calc([](const ProcessedData &calc) {
+        return calc.info + "|" + std::to_string(calc.checksum);
     },
                                          layer8);
 
     // Final layer: Add "Final:" prefix to the result
-    auto finalLayer = data([](const std::string &s) {
+    auto finalLayer = calc([](const std::string &s) {
         return "Final:" + s;
     },
                                              layer9);
@@ -581,7 +595,7 @@ TEST(DataSourceStressTest, DeepDependencyChain) {
             std::string l4 = l3 + "_" + base4.get();                      // Append base1
             size_t l5 = l4.length();                                      // Get string length
             std::vector<int> l6(l5, base5.get());                         // Create vector of length 'l5'
-            int l7 = std::accumulate(l6.begin(), l6.end(), 0);          // Sum vector values
+            int l7 = std::accumulate(l6.begin(), l6.end(), 0);            // Sum vector values
             ProcessedData l8{"ProcessedData", static_cast<int>(l7)};      // Create ProcessedData object
             std::string l9 = l8.info + "|" + std::to_string(l8.checksum); // Combine info and checksum
             return "Final:" + l9;                                         // Add final prefix
@@ -657,11 +671,11 @@ private:
 TEST(TestFieldSource, ReactionTest) {
     // Create a PersonField object
     PersonField person{"lummy", 18, true};
-    auto p = reaction::meta(person);
-    auto a = reaction::meta(1);
+    auto p = reaction::var(person);
+    auto a = reaction::var(1);
 
     // Create a data source that combines the integer 'a' and the person's name
-    auto ds = reaction::data([](int aa, auto pp) { return std::to_string(aa) + pp.getName(); }, a, p);
+    auto ds = reaction::calc([](int aa, auto pp) { return std::to_string(aa) + pp.getName(); }, a, p);
 
     // Verify the result
     EXPECT_EQ(ds.get(), "1lummy");

@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2025 Lummy
+ *
+ * This software is released under the MIT License.
+ * See the LICENSE file in the project root for full details.
+ */
+
 #ifndef REACTION_INVALIDSTRATEGY_H
 #define REACTION_INVALIDSTRATEGY_H
 
@@ -6,7 +13,7 @@
 namespace reaction {
 
 // Strategy that handles invalid states by closing the node
-struct DirectFailureStrategy {
+struct DirectCloseStrategy {
     // Handle invalid node by closing it in the ObserverGraph
     template <typename Source>
     void handleInvalid(Source &&source) {
@@ -17,7 +24,7 @@ struct DirectFailureStrategy {
 };
 
 // Strategy that keeps calculating without handling invalid state
-struct KeepCalculateStrategy {
+struct KeepCalcStrategy {
     // No specific handling for invalid state
     template <typename Source>
     void handleInvalid([[maybe_unused]] Source &&source) {
@@ -25,7 +32,7 @@ struct KeepCalculateStrategy {
 };
 
 // Strategy that keeps the last valid value when the node is invalid
-struct UseLastValidValueStrategy {
+struct LastValStrategy {
     // Handle invalid node by setting the last valid value
     template <typename DS>
     void handleInvalid(DS &&ds) {

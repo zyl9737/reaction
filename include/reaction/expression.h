@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2025 Lummy
+ *
+ * This software is released under the MIT License.
+ * See the LICENSE file in the project root for full details.
+ */
+
 #ifndef REACTION_EXPRESSION_H
 #define REACTION_EXPRESSION_H
 
@@ -61,13 +68,11 @@ protected:
             TriggerPolicy::setRepeatDependent(repeat);
         }
 
-        // Update the value or evaluate the functor
         if constexpr (!std::is_void_v<ValueType>) {
             this->updateValue(evaluate());
         } else {
             evaluate();
         }
-
         return true;
     }
 
@@ -77,8 +82,8 @@ protected:
     }
 
     // Evaluates the functor and returns its result
-    auto evaluate() const -> std::conditional_t<std::is_void_v<ValueType>, void, ValueType> {
-        if constexpr (std::is_void_v<ValueType>) {
+    auto evaluate() const {
+        if constexpr (VoidCC<ValueType>) {
             std::invoke(m_fun);
         } else {
             return std::invoke(m_fun);
@@ -87,8 +92,12 @@ protected:
 
     // Value change notification based on trigger policy
     void valueChanged(bool changed) {
-        if (TriggerPolicy::checkTrigger(changed)) {
-            if constexpr (!std::is_void_v<ValueType>) {
+        if constexpr (std::is_same_v<TriggerPolicy, ValueChangeTrigger>) {
+            this->setChanged(changed);
+        }
+
+        if (TriggerPolicy::checkTrigger()) {
+            if constexpr (!VoidCC<ValueType>) {
                 auto oldVal = this->getValue();
                 auto newVal = evaluate();
                 this->updateValue(newVal);
@@ -100,19 +109,17 @@ protected:
     }
 
     // Set the functor for the expression
-    void setFunctor(std::function<ValueType()> fun) {
+    void setFunctor(std::function<ValueType()> &&fun) {
         m_fun = std::move(fun);
     }
 
 private:
     std::function<ValueType()> m_fun; // Functor for evaluation
-
-    template <TriggerCC Trigger, InvalidCC Invalid, typename F, typename... A>
-    friend auto data(F &&fun, A &&...args);
 };
 
 // Specialized Expression class template (for simple value-based expressions)
 template <typename TriggerPolicy, UninvocaCC Type>
+    requires(!IsBinaryOpExprCC<Type>)
 class Expression<TriggerPolicy, Type> : public Resource<SimpleExpr, std::decay_t<Type>> {
 public:
     using Resource<SimpleExpr, std::decay_t<Type>>::Resource;
@@ -123,12 +130,121 @@ protected:
     Type evaluate() const {
         return this->getValue();
     }
+};
 
-    // Set the value of the expression
-    template <typename T>
-    bool setSource(T &&t) {
-        this->updateValue(std::forward<T>(t));
-        return true;
+template <typename Op, typename L, typename R>
+class BinaryOpExpr : public Expression<AlwaysTrigger, std::function<typename std::common_type_t<typename L::ValueType, typename R::ValueType>()>> {
+    L left;
+    R right;
+    Op op;
+
+public:
+    using ValueType = typename std::common_type_t<typename L::ValueType, typename R::ValueType>;
+    BinaryOpExpr(const L &l, const R &r, Op o = Op{}) :
+        left(l), right(r), op(o) {
+    }
+
+    BinaryOpExpr(const BinaryOpExpr &expr) :
+        left(expr.left), right(expr.right), op(expr.op) {
+    }
+
+    auto operator()() const {
+        return calculate();
+    }
+
+protected:
+    void setOpExpr() {
+        this->setFunctor([this]() {
+            return this->calculate();
+        });
+        this->updateValue(this->evaluate());
+    }
+
+    auto calculate() const {
+        return op(left(), right());
+    }
+};
+
+struct AddOp {
+    auto operator()(auto &&l, auto &&r) const {
+        return l + r;
+    }
+};
+
+struct MulOp {
+    auto operator()(auto &&l, auto &&r) const {
+        return l * r;
+    }
+};
+
+struct SubOp {
+    auto operator()(auto &&l, auto &&r) const {
+        return l - r;
+    }
+};
+
+struct DivOp {
+    auto operator()(auto &&l, auto &&r) const {
+        return l / r;
+    }
+};
+
+template <typename T>
+struct ValueWrapper {
+    using ValueType = T;
+    T value;
+
+    ValueWrapper(const T &v) :
+        value(v) {
+    }
+    const T &operator()() const {
+        return value;
+    }
+};
+
+template <typename T>
+using ExprWrapper = std::conditional_t<
+    is_data_weak_ref<T>::value || is_binary_op_expr<T>::value,
+    T,
+    ValueWrapper<T>>;
+
+template <typename Op, typename L, typename R>
+auto make_binary_expr(L &&l, R &&r) {
+    return BinaryOpExpr<Op, ExprWrapper<std::decay_t<L>>, ExprWrapper<std::decay_t<R>>>(
+        std::forward<L>(l),
+        std::forward<R>(r));
+}
+
+template <typename L, typename R>
+    requires CustomOpCC<L, R>
+auto operator+(L &&l, R &&r) {
+    return make_binary_expr<AddOp>(std::forward<L>(l), std::forward<R>(r));
+}
+
+template <typename L, typename R>
+    requires CustomOpCC<L, R>
+auto operator*(L &&l, R &&r) {
+    return make_binary_expr<MulOp>(std::forward<L>(l), std::forward<R>(r));
+}
+
+template <typename L, typename R>
+    requires CustomOpCC<L, R>
+auto operator-(L &&l, R &&r) {
+    return make_binary_expr<SubOp>(std::forward<L>(l), std::forward<R>(r));
+}
+
+template <typename L, typename R>
+    requires CustomOpCC<L, R>
+auto operator/(L &&l, R &&r) {
+    return make_binary_expr<DivOp>(std::forward<L>(l), std::forward<R>(r));
+}
+
+template <typename TriggerPolicy, typename Op, typename L, typename R>
+class Expression<TriggerPolicy, BinaryOpExpr<Op, L, R>> : public BinaryOpExpr<Op, L, R> {
+public:
+    using ValueType = BinaryOpExpr<Op, L, R>::ValueType;
+    Expression(const BinaryOpExpr<Op, L, R> &expr) :
+        BinaryOpExpr<Op, L, R>(expr) {
     }
 };
 

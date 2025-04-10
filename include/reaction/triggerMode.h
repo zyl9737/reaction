@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2025 Lummy
+ *
+ * This software is released under the MIT License.
+ * See the LICENSE file in the project root for full details.
+ */
+
 #ifndef REACTION_TRIGGERMODE_H
 #define REACTION_TRIGGERMODE_H
 
@@ -22,7 +29,7 @@ inline auto createUpdateFunRef(F &&f, A &&...args) {
 // Trigger mode that always returns true
 struct AlwaysTrigger {
     // Always triggers regardless of the arguments
-    bool checkTrigger([[maybe_unused]] bool trigger = true) {
+    bool checkTrigger() {
         return true; // Always triggers
     }
 };
@@ -30,9 +37,16 @@ struct AlwaysTrigger {
 // Trigger mode that triggers based on value change
 struct ValueChangeTrigger {
     // Only triggers if the provided boolean argument is true
-    bool checkTrigger(bool trigger = true) {
-        return trigger; // All arguments must be true for the trigger to occur
+    bool checkTrigger() {
+        return m_changed; // All arguments must be true for the trigger to occur
     }
+
+    void setChanged(bool changed) {
+        m_changed = changed;
+    }
+
+private:
+    bool m_changed = true;
 };
 
 // Trigger mode based on a threshold, supports repeat dependencies
@@ -49,7 +63,7 @@ struct ThresholdTrigger {
     }
 
     // Check whether the trigger condition is met using the threshold function
-    bool checkTrigger([[maybe_unused]] bool trigger = true) {
+    bool checkTrigger() {
         return std::invoke(m_thresholdFun); // Calls the threshold function to determine trigger condition
     }
 
