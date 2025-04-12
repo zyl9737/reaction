@@ -1,4 +1,4 @@
-# ReactiveCpp: Modern C++ Reactive Programming Framework
+# Reaction: Modern C++ Reactive Programming Framework
 
 [![C++20](https://img.shields.io/badge/C++-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
 [![Header-only](https://img.shields.io/badge/Header--only-Yes-green.svg)](https://en.wikipedia.org/wiki/Header-only)
@@ -56,7 +56,7 @@ target_link_libraries(your_target PRIVATE reaction)
 ### 🚀 Quick Start
 
 ```cpp
-#include <reaction/dataSource.h>
+#include <reaction/reaction.h>
 #include <iostream>
 #include <iomanip>
 

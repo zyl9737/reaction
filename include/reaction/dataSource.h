@@ -8,8 +8,8 @@
 #ifndef REACTION_DATASOURCE_H
 #define REACTION_DATASOURCE_H
 
-#include "reaction/invalidStrategy.h"
 #include "reaction/expression.h"
+#include "reaction/invalidStrategy.h"
 #include <atomic>
 
 namespace reaction {
@@ -30,26 +30,26 @@ struct RegGuard {
 // Trait to determine the expression type for DataSource
 template <typename... Args>
 struct SourceTraits {
-    using ExprType = Expression<Args...>;
+    using Expr = Expression<Args...>;
 };
 
 // Specialization of SourceTraits for DataSource with a single type
 template <typename TriggerPolicy, typename InvalidStrategy, typename Type>
 struct SourceTraits<DataSource<TriggerPolicy, InvalidStrategy, Type>> {
-    using ExprType = Expression<TriggerPolicy, Type>;
+    using Expr = Expression<TriggerPolicy, Type>;
 };
 
 // Specialization of SourceTraits for DataSource with multiple types
 template <typename TriggerPolicy, typename InvalidStrategy, typename Type, typename... Args>
 struct SourceTraits<DataSource<TriggerPolicy, InvalidStrategy, Type, Args...>> {
-    using ExprType = Expression<TriggerPolicy, Type, Args...>;
+    using Expr = Expression<TriggerPolicy, Type, Args...>;
 };
 
 template <typename DataType>
 class DataWeakRef {
 public:
     using InvStrategy = typename DataType::InvStrategy;
-    using ValueType = typename DataType::ExprType::ValueType;
+    using ValueType = typename DataType::ValueType;
 
     // Constructor: increases weak reference count
     explicit DataWeakRef(DataType *ptr) :
@@ -149,7 +149,7 @@ public:
         return getPtr()->getRaw(); // Get the raw value of the data source
     }
 
-    auto &getRef() const
+    decltype(auto) getRef() const
         requires DataSourceCC<DataType>
     {
         return getPtr()->getRef(); // Get the reference to the data source
@@ -207,20 +207,21 @@ private:
 
 // DataSource class template that handles the value, observers, and invalidation strategies
 template <typename TriggerPolicy, typename InvalidStrategy, typename Type, typename... Args>
-class DataSource : public SourceTraits<DataSource<TriggerPolicy, InvalidStrategy, Type, Args...>>::ExprType,
+class DataSource : public SourceTraits<DataSource<TriggerPolicy, InvalidStrategy, Type, Args...>>::Expr,
                    private InvalidStrategy {
 public:
-    // Using the ExprType from SourceTraits
-    using ExprType = typename SourceTraits<DataSource>::ExprType;
+    // Using the Expr from SourceTraits
+    using Expr = typename SourceTraits<DataSource>::Expr;
+    using ValueType = typename Expr::ValueType;
     using InvStrategy = InvalidStrategy;
-    using ExprType::ExprType; // Inherit constructors from ExprType
+    using Expr::Expr; // Inherit constructors from Expr
 
     ~DataSource() {
         notifyDestruction();
     }
 
     // Set new value and notify observers
-    template <typename F, ArgSizeOverZeroCC... A>
+    template <typename F, ArgNonEmptyCC... A>
     bool set(F &&f, A &&...args) {
         return this->setSource(std::forward<F>(f), std::forward<A>(args)...);
     }
@@ -250,25 +251,19 @@ public:
         ObserverGraph::getInstance().closeNode(this->getShared());
     }
 
-    template <typename Trigger, typename Invalid, typename T, typename... A>
-    auto operator+(const DataSource<Trigger, Invalid, T, A...> &data)
-        requires(!ConstCC<Type>)
-    {
-        return get() + data.get();
-    }
-
     // Assignment operator to update the value and notify observers
     template <typename T>
     DataSource &operator=(T &&t)
-        requires(!ConstCC<Type>)
+        requires(!ConstCC<ValueType> && !VoidCC<ValueType>)
     {
         value(std::forward<T>(t));
         return *this;
     }
 
     // Addition assignment operator
-    DataSource &operator+=(const Type &rhs)
-        requires(!ConstCC<Type>)
+    template <typename T>
+    DataSource &operator+=(const T &rhs)
+        requires(!ConstCC<ValueType> && !VoidCC<ValueType>)
     {
         this->updateValue(this->getValue() + rhs);
         this->notifyObservers(true);
@@ -276,8 +271,9 @@ public:
     }
 
     // Subtraction assignment operator
-    DataSource &operator-=(const Type &rhs)
-        requires(!ConstCC<Type>)
+    template <typename T>
+    DataSource &operator-=(const T &rhs)
+        requires(!ConstCC<ValueType> && !VoidCC<ValueType>)
     {
         this->updateValue(this->getValue() - rhs);
         this->notifyObservers(true);
@@ -285,8 +281,9 @@ public:
     }
 
     // Multiplication assignment operator
-    DataSource &operator*=(const Type &rhs)
-        requires(!ConstCC<Type>)
+    template <typename T>
+    DataSource &operator*=(const T &rhs)
+        requires(!ConstCC<ValueType> && !VoidCC<ValueType>)
     {
         this->updateValue(this->getValue() * rhs);
         this->notifyObservers(true);
@@ -294,8 +291,9 @@ public:
     }
 
     // Division assignment operator
-    DataSource &operator/=(const Type &rhs)
-        requires(!ConstCC<Type>)
+    template <typename T>
+    DataSource &operator/=(const T &rhs)
+        requires(!ConstCC<ValueType> && !VoidCC<ValueType>)
     {
         this->updateValue(this->getValue() / rhs);
         this->notifyObservers(true);
@@ -304,7 +302,7 @@ public:
 
     // Prefix increment operator
     DataSource &operator++()
-        requires(!ConstCC<Type>)
+        requires(!ConstCC<ValueType> && !VoidCC<ValueType>)
     {
         this->updateValue(this->getValue() + 1);
         this->notifyObservers(true);
@@ -313,7 +311,7 @@ public:
 
     // Prefix decrement operator
     DataSource &operator--()
-        requires(!ConstCC<Type>)
+        requires(!ConstCC<ValueType> && !VoidCC<ValueType>)
     {
         this->updateValue(this->getValue() - 1);
         this->notifyObservers(true);
@@ -322,10 +320,15 @@ public:
 
     template <typename T>
     void value(T &&t)
-        requires(!ConstCC<Type>)
+        requires(!ConstCC<ValueType> && !VoidCC<ValueType>)
     {
         this->updateValue(std::forward<T>(t));
-        this->notifyObservers(this->getValue() != t);
+        if constexpr (CompareCC<ValueType>) {
+            this->notifyObservers(this->getValue() != t);
+        }
+        else {
+            this->notifyObservers(true);
+        }
     }
 
     // Getter functions
@@ -338,7 +341,7 @@ public:
     auto getRaw() const {
         return this->getRawPtr();
     }
-    auto &getRef() const {
+    decltype(auto) getRef() const {
         return this->getReference();
     }
 
@@ -370,61 +373,6 @@ private:
     std::atomic<int> m_weakRefCount{0};
     std::unordered_map<DataWeakRef<DataSource> *, std::function<void()>> m_destructionCallbacks;
 };
-
-// Field alias for DataWeakRef to work with DataSource
-template <CompareCC SourceType>
-using Field = DataWeakRef<DataSource<AlwaysTrigger, FieldStrategy, FieldIdentity<std::decay_t<SourceType>>>>;
-
-// Function to create a Field DataSource
-template <CompareCC SourceType>
-auto field(FieldStructBase *meta, SourceType &&value) {
-    auto ptr = std::make_shared<DataSource<AlwaysTrigger, FieldStrategy, FieldIdentity<std::decay_t<SourceType>>>>
-               (FieldIdentity<std::decay_t<SourceType>>{meta, std::forward<SourceType>(value)});
-    FieldGraph::getInstance().addNode(ptr);
-    return DataWeakRef{ptr.get()};
-}
-
-// Function to create a constant DataSource
-template <TriggerCC TriggerPolicy = AlwaysTrigger, VarInvalidCC InvalidStrategy = DirectCloseStrategy, typename SourceType>
-auto constVar(SourceType &&value) {
-    auto ptr = std::make_shared<DataSource<TriggerPolicy, InvalidStrategy, const std::decay_t<SourceType>>>(std::forward<SourceType>(value));
-    ObserverGraph::getInstance().addNode(ptr);
-    return DataWeakRef{ptr.get()};
-}
-
-// Function to create a var DataSource
-template <TriggerCC TriggerPolicy = AlwaysTrigger, VarInvalidCC InvalidStrategy = DirectCloseStrategy, CompareCC SourceType>
-auto var(SourceType &&value) {
-    auto ptr = std::make_shared<DataSource<TriggerPolicy, InvalidStrategy, std::decay_t<SourceType>>>(std::forward<SourceType>(value));
-    if constexpr (HasFieldCC<std::decay_t<SourceType>>) {
-        ptr->setField();
-    }
-    ObserverGraph::getInstance().addNode(ptr);
-    return DataWeakRef{ptr.get()};
-}
-
-template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectCloseStrategy, IsBinaryOpExprCC OpExpr>
-auto expr(OpExpr &&opExpr) {
-    auto ptr = std::make_shared<DataSource<TriggerPolicy, InvalidStrategy, std::decay_t<OpExpr>>>(std::forward<OpExpr>(opExpr));
-    ObserverGraph::getInstance().addNode(ptr);
-    ptr->set();
-    return DataWeakRef{ptr.get()};
-}
-
-// Function to create a variable DataSource
-template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectCloseStrategy, typename Fun, typename... Args>
-auto calc(Fun &&fun, Args &&...args) {
-    auto ptr = std::make_shared<DataSource<TriggerPolicy, InvalidStrategy, Fun, typename is_data_weak_ref<std::decay_t<Args>>::Type...>>();
-    ObserverGraph::getInstance().addNode(ptr);
-    ptr->set(std::forward<Fun>(fun), std::forward<Args>(args)...);
-    return DataWeakRef{ptr.get()};
-}
-
-// Function to create an action DataSource
-template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectCloseStrategy, typename Fun, typename... Args>
-auto action(Fun &&fun, Args &&...args) {
-    return calc<TriggerPolicy, InvalidStrategy>(std::forward<Fun>(fun), std::forward<Args>(args)...);
-}
 
 } // namespace reaction
 

@@ -52,14 +52,14 @@ concept SourceCC = requires(T t) {
 
 template <typename T>
 concept ActionSourceCC = requires {
-    typename T::ExprType::ValueType;
-    requires SourceCC<T> && std::is_same_v<typename T::ExprType::ValueType, void>;
+    typename T::ValueType;
+    requires SourceCC<T> && std::is_same_v<typename T::ValueType, void>;
 };
 
 template <typename T>
 concept DataSourceCC = requires {
-    typename T::ExprType::ValueType;
-    requires SourceCC<T> && !std::is_same_v<typename T::ExprType::ValueType, void>;
+    typename T::ValueType;
+    requires SourceCC<T> && !std::is_same_v<typename T::ValueType, void>;
 };
 
 template <typename T>
@@ -70,23 +70,23 @@ concept InvalidCC = requires(T t) {
 };
 
 template <typename T>
-concept ConstCC = std::is_const_v<T>;
+concept ConstCC = std::is_const_v<std::decay_t<T>>;
 
 template <typename T>
 concept InvocaCC = std::is_invocable_v<std::decay_t<T>>;
 
 template <typename T>
-concept VoidCC = std::is_void_v<T>;
+concept VoidCC = std::is_void_v<std::decay_t<T>>;
 
 template <typename T>
-concept UninvocaCC = !InvocaCC<T>;
+concept UnInvocaCC = !InvocaCC<T>;
 
 template <typename... Args>
-concept ArgSizeOverZeroCC = sizeof...(Args) > 0;
+concept ArgNonEmptyCC = sizeof...(Args) > 0;
 
 struct FieldStructBase;
 template <typename T>
-concept HasFieldCC = std::is_base_of_v<FieldStructBase, T>;
+concept HasFieldCC = std::is_base_of_v<FieldStructBase, std::decay_t<T>>;
 
 template <typename T>
 concept CompareCC = requires(T &a, T &b) {
@@ -127,7 +127,7 @@ concept CustomOpCC =
 
 struct LastValStrategy;
 template <typename T>
-concept VarInvalidCC = InvalidCC<T> && !std::is_same_v<T, LastValStrategy>;
+concept VarInvalidCC = InvalidCC<T> && !std::is_same_v<std::decay_t<T>, LastValStrategy>;
 
 } // namespace reaction
 

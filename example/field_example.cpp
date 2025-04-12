@@ -5,7 +5,7 @@
  * See the LICENSE file in the project root for full details.
  */
 
-#include "reaction/dataSource.h"
+#include "reaction/reaction.h"
 #include <iostream>
 #include <string>
 
@@ -26,11 +26,6 @@ public:
     Person(Person &&p) :
         m_name(reaction::field(this, p.m_name.get())),
         m_age(reaction::field(this, p.m_age.get())) {
-    }
-
-    // Overloading equality operator for comparison
-    bool operator==(Person &p) {
-        return m_name.get() == p.m_name.get();
     }
 
     // Getter for name

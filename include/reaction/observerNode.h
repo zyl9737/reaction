@@ -294,7 +294,7 @@ public:
     }
 
     // Delete a field from the graph
-    void deleteField(FieldStructBase *meta) {
+    void deleteMeta(FieldStructBase *meta) {
         m_fieldMap.erase(meta);
     }
 

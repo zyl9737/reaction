@@ -24,7 +24,7 @@ struct ExpressionTraits {
 };
 
 // Specialization for DataSource without Functor (Base case)
-template <typename TriggerPolicy, typename InvalidStrategy, UninvocaCC T>
+template <typename TriggerPolicy, typename InvalidStrategy, UnInvocaCC T>
 struct ExpressionTraits<DataSource<TriggerPolicy, InvalidStrategy, T>> {
     using Type = T;
 };
@@ -101,7 +101,11 @@ protected:
                 auto oldVal = this->getValue();
                 auto newVal = evaluate();
                 this->updateValue(newVal);
-                this->notifyObservers(oldVal != newVal);
+                if constexpr (CompareCC<ValueType>) {
+                    this->notifyObservers(oldVal != newVal);
+                } else {
+                    this->notifyObservers(true);
+                }
             } else {
                 evaluate();
             }
@@ -118,7 +122,7 @@ private:
 };
 
 // Specialized Expression class template (for simple value-based expressions)
-template <typename TriggerPolicy, UninvocaCC Type>
+template <typename TriggerPolicy, UnInvocaCC Type>
     requires(!IsBinaryOpExprCC<Type>)
 class Expression<TriggerPolicy, Type> : public Resource<SimpleExpr, std::decay_t<Type>> {
 public:
@@ -140,8 +144,9 @@ class BinaryOpExpr : public Expression<AlwaysTrigger, std::function<typename std
 
 public:
     using ValueType = typename std::common_type_t<typename L::ValueType, typename R::ValueType>;
-    BinaryOpExpr(const L &l, const R &r, Op o = Op{}) :
-        left(l), right(r), op(o) {
+    template <typename Left, typename Right>
+    BinaryOpExpr(Left &&l, Right &&r, Op o = Op{}) :
+        left(std::forward<Left>(l)), right(std::forward<Right>(r)), op(o) {
     }
 
     BinaryOpExpr(const BinaryOpExpr &expr) :
@@ -194,8 +199,9 @@ struct ValueWrapper {
     using ValueType = T;
     T value;
 
-    ValueWrapper(const T &v) :
-        value(v) {
+    template <typename Type>
+    ValueWrapper(Type &&t) :
+        value(std::forward<Type>(t)) {
     }
     const T &operator()() const {
         return value;

@@ -52,7 +52,7 @@ private:
 // Trigger mode based on a threshold, supports repeat dependencies
 struct ThresholdTrigger {
     // Set the threshold function to determine whether to trigger based on arguments
-    template <typename F, ArgSizeOverZeroCC... A>
+    template <typename F, ArgNonEmptyCC... A>
     void setThreshold(F &&f, A &&...args) {
         // Use different function references based on whether the repeat dependency is set
         if (m_repeatDependent) {

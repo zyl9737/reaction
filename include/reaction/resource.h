@@ -9,13 +9,16 @@
 #define REACTION_RESOURCE_H
 
 #include "reaction/observerNode.h"
-#include <mutex>
 #include <exception>
 
 namespace reaction {
 
 // Base struct for fields (empty base class)
-struct FieldStructBase {};
+struct FieldStructBase {
+    ~FieldStructBase() {
+        FieldGraph::getInstance().deleteMeta(this);
+    }
+};
 
 // Struct to hold metadata and value for a field identity
 template <typename Type>
@@ -107,7 +110,7 @@ protected:
     void setField() {
         FieldGraph::getInstance().setField(this->getRawPtr(), this->getShared());
     }
-    template <TriggerCC TriggerPolicy, VarInvalidCC InvalidStrategy, CompareCC SourceType>
+    template <TriggerCC TriggerPolicy, VarInvalidCC InvalidStrategy, typename SourceType>
     friend auto var(SourceType &&value);
 };
 

@@ -6,7 +6,7 @@
  */
 
 #include "gtest/gtest.h"
-#include "reaction/dataSource.h"
+#include "reaction/reaction.h"
 #include <vector>
 #include <numeric>
 
@@ -637,11 +637,6 @@ public:
     // Move constructor
     PersonField(PersonField &&p) :
         m_name(reaction::field(this, p.m_name.get())), m_age(reaction::field(this, p.m_age.get())), m_male(p.m_male) {
-    }
-
-    // Overloading equality operator for comparison
-    bool operator==(PersonField &p) {
-        return m_name.get() == p.m_name.get();
     }
 
     // Getter and setter for name
