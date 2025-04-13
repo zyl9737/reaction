@@ -19,30 +19,12 @@ inline thread_local std::function<void(DataNodePtr)> reg_fun;
 
 struct RegGuard {
     RegGuard() {
-        reg_flg = false;
+        reg_flg = true;
     }
     ~RegGuard() {
         reg_flg = false;
         reg_fun = nullptr;
     }
-};
-
-// Trait to determine the expression type for DataSource
-template <typename... Args>
-struct SourceTraits {
-    using Expr = Expression<Args...>;
-};
-
-// Specialization of SourceTraits for DataSource with a single type
-template <typename TriggerPolicy, typename InvalidStrategy, typename Type>
-struct SourceTraits<DataSource<TriggerPolicy, InvalidStrategy, Type>> {
-    using Expr = Expression<TriggerPolicy, Type>;
-};
-
-// Specialization of SourceTraits for DataSource with multiple types
-template <typename TriggerPolicy, typename InvalidStrategy, typename Type, typename... Args>
-struct SourceTraits<DataSource<TriggerPolicy, InvalidStrategy, Type, Args...>> {
-    using Expr = Expression<TriggerPolicy, Type, Args...>;
 };
 
 template <typename DataType>
@@ -160,29 +142,33 @@ public:
     }
 
     template <typename T>
-    void value(T &&t) {
+    DataWeakRef &value(T &&t) {
         getPtr()->value(std::forward<T>(t));
+        return *this;
     }
 
     template <typename F, typename... A>
-    bool set(F &&f, A &&...args) {
+    ReactionError set(F &&f, A &&...args) {
         return getPtr()->set(std::forward<F>(f), std::forward<A>(args)...); // Set value in the data source
     }
 
     // Set a threshold for the source
     template <typename F, typename... A>
-    void setThreshold(F &&f, A &&...args) {
+    DataWeakRef &setThreshold(F &&f, A &&...args) {
         getPtr()->setThreshold(std::forward<F>(f), std::forward<A>(args)...); // Set threshold for the data source
+        return *this;
     }
 
     // Close the data source
-    void close() {
+    DataWeakRef &close() {
         getPtr()->close(); // Close the data source
+        return *this;
     }
 
     // Set and get the name of the data source
-    void setName(const std::string &name) {
+    DataWeakRef &setName(const std::string &name) {
         getPtr()->setName(name); // Set the name of the data source
+        return *this;
     }
 
     std::string getName() const {
@@ -207,11 +193,10 @@ private:
 
 // DataSource class template that handles the value, observers, and invalidation strategies
 template <typename TriggerPolicy, typename InvalidStrategy, typename Type, typename... Args>
-class DataSource : public SourceTraits<DataSource<TriggerPolicy, InvalidStrategy, Type, Args...>>::Expr,
+class DataSource : public Expression<TriggerPolicy, Type, Args...>,
                    private InvalidStrategy {
 public:
-    // Using the Expr from SourceTraits
-    using Expr = typename SourceTraits<DataSource>::Expr;
+    using Expr = Expression<TriggerPolicy, Type, Args...>;
     using ValueType = typename Expr::ValueType;
     using InvStrategy = InvalidStrategy;
     using Expr::Expr; // Inherit constructors from Expr
@@ -222,28 +207,25 @@ public:
 
     // Set new value and notify observers
     template <typename F, ArgNonEmptyCC... A>
-    bool set(F &&f, A &&...args) {
+    ReactionError set(F &&f, A &&...args) {
         return this->setSource(std::forward<F>(f), std::forward<A>(args)...);
     }
 
     template <InvocaCC F>
-    bool set(F &&f) {
+    ReactionError set(F &&f) {
         RegGuard guard;
-        reg_flg = true;
         reg_fun = [this](DataNodePtr node) {
             this->updateOneOb(node);
         };
         return this->setSource(std::forward<F>(f));
     }
 
-    bool set() {
+    ReactionError set() {
         RegGuard guard;
-        reg_flg = true;
         reg_fun = [this](DataNodePtr node) {
             this->updateOneOb(node);
         };
-        this->setOpExpr();
-        return true;
+        return this->setOpExpr();
     }
 
     // Close the DataSource and remove it from the observer graph

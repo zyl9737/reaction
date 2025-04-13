@@ -37,7 +37,7 @@ struct ExpressionTraits<DataSource<TriggerPolicy, InvalidStrategy, Fun, Args...>
 
 // Helper alias to retrieve return type of functors
 template <typename Fun, typename... Args>
-using ReturnType = typename ExpressionTraits<DataSource<void, void, Fun, Args...>>::Type;
+using ReturnType = typename ExpressionTraits<DataSource<void, void, std::decay_t<Fun>, std::decay_t<Args>...>>::Type;
 
 // General Expression class template (for functor-based expressions)
 template <typename TriggerPolicy, typename Fun, typename... Args>
@@ -48,32 +48,38 @@ public:
 protected:
     // Sets the source data for the expression and updates the functor
     template <typename F, typename... A>
-    bool setSource(F &&f, A &&...args) {
-        bool repeat = false;
+    ReactionError setSource(F &&f, A &&...args) {
+        if constexpr (std::convertible_to<ReturnType<std::decay_t<F>, typename is_data_weak_ref<std::decay_t<A>>::Type...>, ValueType>) {
+            bool repeat = false;
 
-        // Check if we should repeat the update
-        if (!this->updateObservers(repeat, [this](bool changed) { this->valueChanged(changed); }, std::forward<A>(args)...)) {
-            return false;
+            // Check if we should repeat the update
+            if (!this->updateObservers(repeat, [this](bool changed) { this->valueChanged(changed); }, std::forward<A>(args)...)) {
+                return ReactionError::CycleDepErr;
+            }
+
+            // Choose the right functor based on whether we repeat the update or not
+            if (repeat) {
+                setFunctor(createUpdateFunRef(std::forward<F>(f), std::forward<A>(args)...));
+            } else {
+                setFunctor(createGetFunRef(std::forward<F>(f), std::forward<A>(args)...));
+            }
+
+            // Handle trigger policy for threshold
+            if constexpr (std::is_same_v<TriggerPolicy, ThresholdTrigger>) {
+                TriggerPolicy::setRepeatDependent(repeat);
+            }
+
+            if constexpr (!std::is_void_v<ValueType>) {
+                this->updateValue(evaluate());
+            } else {
+                evaluate();
+            }
         }
 
-        // Choose the right functor based on whether we repeat the update or not
-        if (repeat) {
-            setFunctor(createUpdateFunRef(std::forward<F>(f), std::forward<A>(args)...));
-        } else {
-            setFunctor(createGetFunRef(std::forward<F>(f), std::forward<A>(args)...));
+        else {
+            return ReactionError::ReturnTypeErr;
         }
-
-        // Handle trigger policy for threshold
-        if constexpr (std::is_same_v<TriggerPolicy, ThresholdTrigger>) {
-            TriggerPolicy::setRepeatDependent(repeat);
-        }
-
-        if constexpr (!std::is_void_v<ValueType>) {
-            this->updateValue(evaluate());
-        } else {
-            evaluate();
-        }
-        return true;
+        return ReactionError::NoErr;
     }
 
     void updateOneOb(DataNodePtr node) {
@@ -245,11 +251,12 @@ public:
     }
 
 protected:
-    void setOpExpr() {
+    ReactionError setOpExpr() {
         this->setFunctor([this]() {
             return m_expr.calculate();
         });
         this->updateValue(this->evaluate());
+        return ReactionError::NoErr;
     }
 
 private:

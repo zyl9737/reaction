@@ -117,12 +117,17 @@ TEST(TestReset, ReactionTest) {
     auto ddds = reaction::calc([](auto cc) { return cc; }, c);
 
     EXPECT_EQ(ddds.get(), "3");
-    ddds.set([=]() { return d() + dds() + "set"; });
+    auto ret = ddds.set([=]() { return d() + dds() + "set"; });
+    EXPECT_EQ(ret, reaction::ReactionError::NoErr);
+
     EXPECT_EQ(ddds.get(), "42set");
     *c = "33";
     EXPECT_EQ(ddds.get(), "42set");
     *d = "44";
     EXPECT_EQ(ddds.get(), "442set");
+
+    ret = ddds.set([=]() { return a(); });
+    EXPECT_EQ(ret, reaction::ReactionError::ReturnTypeErr);
 }
 
 // Test for self-dependency scenario (invalid)
@@ -134,7 +139,7 @@ TEST(TestSelfDependency, ReactionTest) {
     auto dsA = reaction::calc([](int aa) { return aa; }, a);
 
     EXPECT_EQ(dsA.set([](int aa, int dsAValue) { return aa + dsAValue; }, a, dsA),
-              false); // This should fail as self-dependency is not allowed
+              reaction::ReactionError::CycleDepErr); // This should fail as self-dependency is not allowed
 }
 
 // Test for repeat dependencies and the number of trigger counts
@@ -193,7 +198,7 @@ TEST(TestCycleDependency, ReactionTest) {
     dsB.set([](int cc, int dsCValue) { return cc * dsCValue; }, c, dsC);
 
     EXPECT_EQ(dsC.set([](int aa, int dsAValue) { return aa - dsAValue; }, a, dsA),
-              false); // This should fail due to cycle dependency
+              reaction::ReactionError::CycleDepErr); // This should fail due to cycle dependency
 }
 
 // Test for copying data sources

@@ -54,7 +54,7 @@ auto expr(OpExpr &&opExpr) {
 // Function to create a variable DataSource
 template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectCloseStrategy, typename Fun, typename... Args>
 auto calc(Fun &&fun, Args &&...args) {
-    auto ptr = std::make_shared<DataSource<TriggerPolicy, InvalidStrategy, Fun, typename is_data_weak_ref<std::decay_t<Args>>::Type...>>();
+    auto ptr = std::make_shared<DataSource<TriggerPolicy, InvalidStrategy, std::decay_t<Fun>, typename is_data_weak_ref<std::decay_t<Args>>::Type...>>();
     ObserverGraph::getInstance().addNode(ptr);
     ptr->set(std::forward<Fun>(fun), std::forward<Args>(args)...);
     return DataWeakRef{ptr.get()};

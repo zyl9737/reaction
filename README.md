@@ -3,13 +3,28 @@
 [![C++20](https://img.shields.io/badge/C++-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
 [![Header-only](https://img.shields.io/badge/Header--only-Yes-green.svg)](https://en.wikipedia.org/wiki/Header-only)
 [![CMake](https://img.shields.io/badge/CMake-3.15+-blueviolet.svg)](https://cmake.org)
+[![ReactiveX](https://img.shields.io/badge/Reactive-Programming-ff69b4.svg)](https://reactivex.io)
+[![TMP](https://img.shields.io/badge/Template-Metaprogramming-orange.svg)](https://en.cppreference.com/w/cpp/language/templates)
+[![MVVM](https://img.shields.io/badge/Pattern-MVVM%2FMVC-9cf.svg)](https://en.wikipedia.org/wiki/Model–view–viewmodel)
 
 A lightweight, header-only reactive programming framework leveraging modern C++20 features for building efficient dataflow applications.
+
+### 🎯 **Focused on UI Dataflow Management**
+
+- **Pure Data-Driven Updates** – Optimized for **one-way binding** (Model → View)
+- **No Event Emitters** – Changes propagate **only through data dependencies**, avoiding callback hell
+- **Predictable Updates** – Strict **top-down dataflow** like React/Vue, but with zero runtime overhead
+
+#### **Ideal For:**
+✅ **MVVM/MVC UI Architectures**
+✅ **Game Object Properties**
+✅ **Form Validation Chains**
+✅ **Animation State Machines**
 
 ### 🚀 Performance Optimized
 
 - **Zero-cost abstractions** through template metaprogramming
-- **Compile-time dependency graph** optimization
+- **Virtual-Free Design** Pure compile-time polymorphism
 - Minimal runtime overhead with **smart change propagation**
 
 ### 🔗 Intelligent Dependency Management
@@ -18,10 +33,11 @@ A lightweight, header-only reactive programming framework leveraging modern C++2
 - Fine-grained **change propagation control**
 - Configurable **caching strategies**
 
-### 🛡️ Type Safety Guarantees
+### 🛡️ Safety Guarantees
 
 - Compile-time **type checking** with C++20 concepts
 - Safe **value semantics** throughout the framework
+- Framework manages object lifetime internally
 
 ### 🧩 Extensible Design
 
@@ -84,9 +100,7 @@ int main() {
     });
 
     // Simulate market changes
-    currentPrice.value(110.0);  // Price increase
-    currentPrice.value(95.0);   // Price drop
-    *buyPrice = 90.0;           // Adjust basis
+    currentPrice.value(110.0).value(95.0).value(90.0);  // Stock price changes
     return 0;
 }
 ```
@@ -227,7 +241,14 @@ TEST(TestReset, ReactionTest) {
     auto a = reaction::var(1);
     auto b = reaction::var(std::string{"2"});
     auto ds = reaction::calc([]() { return std::to_string(a()); });
-    ds.set([=]() { return b() + "set"; });
+    auto ret = ds.set([=]() { return b() + "set"; });
+    EXPECT_EQ(ret, reaction::ReactionError::NoErr);
+
+    ret = ddds.set([=]() { return a(); });
+    EXPECT_EQ(ret, reaction::ReactionError::ReturnTypeErr);
+
+    ret = ddds.set([=]() { return ds(); });
+    EXPECT_EQ(ret, reaction::ReactionError::CycleDepErr);
 }
 ```
 
@@ -329,7 +350,7 @@ Below is a concise example that illustrates all three strategies:
     auto a = var(1);
     auto b = calc([]() { return a(); });
     {
-        auto temp = calc<AlwaysTrigger, KeepCalcStrategy>([]() { return a(); }); // default is DirectFailureStrategy
+        auto temp = calc<AlwaysTrigger, LastValStrategy>([]() { return a(); }); // default is DirectFailureStrategy
         b.set([]() { return temp(); });
     }
     // temp lifecycle ends, b use its last val to calculate.
@@ -351,3 +372,22 @@ struct MyStrategy {
 auto a = var(1);
 auto b = expr<AlwaysTrigger, MyStrategy>(a + 1);
 ```
+
+## **Contributions Welcome!**
+
+We welcome all forms of contributions to make **Reaction** even better:
+
+### **How to Contribute**
+1. **Report Issues**
+   🐛 Found a bug? [Open an Issue](https://github.com/lumia431/reaction/issues) with detailed reproduction steps.
+
+2. **Suggest Features**
+   💡 Have an idea? Propose new features through GitHub Discussions.
+
+3. **Submit Pull Requests**
+   👩💻 Follow our workflow:
+   ```bash
+   git clone https://github.com/lumia431/reaction.git
+   cd reaction
+   # Create a feature branch (feat/xxx or fix/xxx)
+   # Submit PR against `master` branch

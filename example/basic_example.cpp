@@ -33,9 +33,6 @@ int main() {
     });
 
     // Simulate price changes
-    currentPrice.value(110.0);  // Stock price increases
-    currentPrice.value(95.0);   // Stock price drops
-    *buyPrice = 90.0;           // Buy price adjusted
-
+    currentPrice.value(110.0).value(95.0).value(90.0);  // Stock price changes
     return 0;
 }
