@@ -323,7 +323,10 @@ template <typename Derived>
 class ObserverBase : public std::enable_shared_from_this<Derived> {
 public:
     using SourceType = DataNode;
-
+    ObserverBase(const ObserverBase&) = delete;
+    ObserverBase& operator=(const ObserverBase&) = delete;
+    ObserverBase(ObserverBase&&) = delete;
+    ObserverBase& operator=(ObserverBase&&) = delete;
     // Constructor with an optional name
     ObserverBase(const std::string &name = "") :
         m_name(name) {

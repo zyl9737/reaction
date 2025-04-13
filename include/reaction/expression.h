@@ -137,11 +137,7 @@ protected:
 };
 
 template <typename Op, typename L, typename R>
-class BinaryOpExpr : public Expression<AlwaysTrigger, std::function<typename std::common_type_t<typename L::ValueType, typename R::ValueType>()>> {
-    L left;
-    R right;
-    Op op;
-
+class BinaryOpExpr {
 public:
     using ValueType = typename std::common_type_t<typename L::ValueType, typename R::ValueType>;
     template <typename Left, typename Right>
@@ -149,25 +145,18 @@ public:
         left(std::forward<Left>(l)), right(std::forward<Right>(r)), op(o) {
     }
 
-    BinaryOpExpr(const BinaryOpExpr &expr) :
-        left(expr.left), right(expr.right), op(expr.op) {
-    }
-
     auto operator()() const {
         return calculate();
-    }
-
-protected:
-    void setOpExpr() {
-        this->setFunctor([this]() {
-            return this->calculate();
-        });
-        this->updateValue(this->evaluate());
     }
 
     auto calculate() const {
         return op(left(), right());
     }
+
+private:
+    L left;
+    R right;
+    Op op;
 };
 
 struct AddOp {
@@ -246,12 +235,25 @@ auto operator/(L &&l, R &&r) {
 }
 
 template <typename TriggerPolicy, typename Op, typename L, typename R>
-class Expression<TriggerPolicy, BinaryOpExpr<Op, L, R>> : public BinaryOpExpr<Op, L, R> {
+class Expression<TriggerPolicy, BinaryOpExpr<Op, L, R>>
+    : public Expression<AlwaysTrigger, std::function<typename std::common_type_t<typename L::ValueType, typename R::ValueType>()>> {
 public:
-    using ValueType = BinaryOpExpr<Op, L, R>::ValueType;
-    Expression(const BinaryOpExpr<Op, L, R> &expr) :
-        BinaryOpExpr<Op, L, R>(expr) {
+    using ValueType = typename std::common_type_t<typename L::ValueType, typename R::ValueType>;
+    template <typename T>
+    Expression(T &&expr) :
+        m_expr(std::forward<T>(expr)) {
     }
+
+protected:
+    void setOpExpr() {
+        this->setFunctor([this]() {
+            return m_expr.calculate();
+        });
+        this->updateValue(this->evaluate());
+    }
+
+private:
+    BinaryOpExpr<Op, L, R> m_expr;
 };
 
 } // namespace reaction
