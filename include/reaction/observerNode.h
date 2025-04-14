@@ -13,6 +13,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <functional>
+#include <vector>
 
 namespace reaction {
 
@@ -41,6 +42,7 @@ public:
             m_dataDependents[node] = std::unordered_set<DataNodePtr>();
             m_dataObservers[node] = std::unordered_map<DataNodePtr, std::function<void(bool)>>();
             m_actionObservers[node] = std::unordered_map<ActionNodePtr, std::function<void(bool)>>();
+            m_observers[node].reserve(10);
         } else {
             m_actionDependents[node] = std::unordered_set<DataNodePtr>();
         }
@@ -75,6 +77,7 @@ public:
             m_actionDependents[source].insert(target);
             m_actionObservers[target].insert({source, f});
         }
+        m_observers[target].emplace_back(f);
         return true;
     }
 
@@ -124,6 +127,11 @@ public:
     // Get the list of observers for an ActionNode
     std::unordered_map<ActionNodePtr, std::function<void(bool)>> getActionObserverList(DataNodePtr node) {
         return m_actionObservers[node];
+    }
+
+    // Get the list of observers for an ActionNode
+    std::vector<std::function<void(bool)>> getObserverList(DataNodePtr node) {
+        return m_observers[node];
     }
 
 private:
@@ -265,6 +273,7 @@ private:
     std::unordered_map<DataNodePtr, std::unordered_map<DataNodePtr, std::function<void(bool)>>> m_dataObservers;
     std::unordered_map<DataNodePtr, std::unordered_map<ActionNodePtr, std::function<void(bool)>>> m_actionObservers;
     std::unordered_map<ActionNodePtr, std::unordered_set<DataNodePtr>> m_actionDependents;
+    std::unordered_map<DataNodePtr, std::vector<std::function<void(bool)>>> m_observers;
 };
 
 struct FieldStructBase;
@@ -323,10 +332,10 @@ template <typename Derived>
 class ObserverBase : public std::enable_shared_from_this<Derived> {
 public:
     using SourceType = DataNode;
-    ObserverBase(const ObserverBase&) = delete;
-    ObserverBase& operator=(const ObserverBase&) = delete;
-    ObserverBase(ObserverBase&&) = delete;
-    ObserverBase& operator=(ObserverBase&&) = delete;
+    ObserverBase(const ObserverBase &) = delete;
+    ObserverBase &operator=(const ObserverBase &) = delete;
+    ObserverBase(ObserverBase &&) = delete;
+    ObserverBase &operator=(ObserverBase &&) = delete;
     // Constructor with an optional name
     ObserverBase(const std::string &name = "") :
         m_name(name) {
@@ -362,10 +371,13 @@ protected:
     }
 
     void notify(DataNodePtr node, bool changed) {
-        for (auto &[observer, fun] : ObserverGraph::getInstance().getDataObserverList(node)) {
-            std::invoke(fun, changed);
-        }
-        for (auto &[observer, fun] : ObserverGraph::getInstance().getActionObserverList(node)) {
+        // for (auto &[observer, fun] : ObserverGraph::getInstance().getDataObserverList(node)) {
+        //     std::invoke(fun, changed);
+        // }
+        // for (auto &[observer, fun] : ObserverGraph::getInstance().getActionObserverList(node)) {
+        //     std::invoke(fun, changed);
+        // }
+        for (auto fun : ObserverGraph::getInstance().getObserverList(node)) {
             std::invoke(fun, changed);
         }
     }
