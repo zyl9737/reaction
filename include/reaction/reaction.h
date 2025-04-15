@@ -17,9 +17,9 @@ using Field = DataWeakRef<DataSource<AlwaysTrigger, FieldStrategy, FieldIdentity
 
 // Function to create a Field DataSource
 template <typename SourceType>
-auto field(FieldStructBase *meta, SourceType &&value) {
+auto field(FieldStructBase *obj, SourceType &&value) {
     auto ptr = std::make_shared<DataSource<AlwaysTrigger, FieldStrategy, FieldIdentity<std::decay_t<SourceType>>>>
-               (FieldIdentity<std::decay_t<SourceType>>{meta, std::forward<SourceType>(value)});
+               (FieldIdentity<std::decay_t<SourceType>>{obj, std::forward<SourceType>(value)});
     FieldGraph::getInstance().addNode(ptr);
     return DataWeakRef{ptr.get()};
 }

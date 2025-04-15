@@ -8,6 +8,7 @@
 #include <reaction/reaction.h>
 #include <iostream>
 #include <iomanip>
+#include <cmath>
 
 int main() {
     using namespace reaction;
@@ -22,7 +23,7 @@ int main() {
     });
 
     // 3. Use 'expr' to compute percentage gain/loss
-    auto profitPercent = expr((currentPrice - buyPrice) / buyPrice * 100);
+    auto profitPercent = expr(std::abs(currentPrice - buyPrice) / buyPrice * 100);
 
     // 4. Use 'action' to print the log whenever values change
     auto logger = action([=]() {
@@ -33,6 +34,8 @@ int main() {
     });
 
     // Simulate price changes
-    currentPrice.value(110.0).value(95.0).value(90.0);  // Stock price changes
+    currentPrice.value(110.0).value(95.0);  // Stock price increases
+    *buyPrice = 90.0;                       // Buy price adjusted
+
     return 0;
 }

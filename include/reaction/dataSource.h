@@ -10,7 +10,6 @@
 
 #include "reaction/expression.h"
 #include "reaction/invalidStrategy.h"
-#include <atomic>
 
 namespace reaction {
 

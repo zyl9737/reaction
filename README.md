@@ -26,6 +26,7 @@ A lightweight, header-only reactive programming framework leveraging modern C++2
 - **Zero-cost abstractions** through template metaprogramming
 - **Virtual-Free Design** Pure compile-time polymorphism
 - Minimal runtime overhead with **smart change propagation**
+- Propagation efficiency **at the level of millions per second**
 
 ### 🔗 Intelligent Dependency Management
 
@@ -57,9 +58,9 @@ To build and install the `reaction` reactive framework, follow the steps below:
 
 ```bash
 git clone https://github.com/lumia431/reaction.git && cd reaction
-cmake -B build && cd build
-cmake --build .
-cmake --install . --prefix /your/install/path
+cmake -B build
+cmake --build build/
+cmake --install build/ --prefix /your/install/path
 ```
 
 After installation, you can include and link against reaction in your own CMake-based project:
@@ -75,32 +76,35 @@ target_link_libraries(your_target PRIVATE reaction)
 #include <reaction/reaction.h>
 #include <iostream>
 #include <iomanip>
+#include <cmath>
 
 int main() {
     using namespace reaction;
 
-    // 1. Create reactive variables
-    auto buyPrice = var(100.0);      // Purchase price
-    auto currentPrice = var(105.0);  // Market price
+    // 1. Reactive variables for stock prices
+    auto buyPrice = var(100.0);      // Price at which stock was bought
+    auto currentPrice = var(105.0);  // Current market price
 
-    // 2. Derived calculations
-    auto profit = calc([=] {
+    // 2. Use 'calc' to compute profit or loss amount
+    auto profit = calc([=]() {
         return currentPrice() - buyPrice();
     });
 
-    // 3. Expressive formulas
-    auto profitPercent = expr((currentPrice - buyPrice) / buyPrice * 100);
+    // 3. Use 'expr' to compute percentage gain/loss
+    auto profitPercent = expr(std::abs(currentPrice - buyPrice) / buyPrice * 100);
 
-    // 4. Automatic reactions
-    auto logger = action([=] {
+    // 4. Use 'action' to print the log whenever values change
+    auto logger = action([=]() {
         std::cout << std::fixed << std::setprecision(2);
-        std::cout << "[Stock Update] Current: $" << currentPrice()
-                  << " | Profit: $" << profit()
+        std::cout << "[Stock Update] Current Price: $" << currentPrice()
+                  << ", Profit: $" << profit()
                   << " (" << profitPercent() << "%)" << std::endl;
     });
 
-    // Simulate market changes
-    currentPrice.value(110.0).value(95.0).value(90.0);  // Stock price changes
+    // Simulate price changes
+    currentPrice.value(110.0).value(95.0);  // Stock price increases
+    *buyPrice = 90.0;                       // Buy price adjusted
+
     return 0;
 }
 ```
@@ -227,7 +231,18 @@ p->setName("Jackson"); // Action Trigger
 p->setAge(28);         // Action Trigger
 ```
 
-#### 6. Resetting Nodes and Dependencies
+#### 6. Copy and move semantics support
+
+```cpp
+auto a = reaction::var(1);
+auto b = reaction::var(3.14);
+auto ds = reaction::calc([]() { return a() + b(); });
+auto ds_copy = ds;
+auto ds_move = std::move(ds);
+EXPECT_FALSE(static_cast<bool>(ds));
+```
+
+#### 7. Resetting Nodes and Dependencies
 
 The reaction framework allows you to **reset a computation node** by replacing its computation function.
 This mechanism is useful when the result needs to be recalculated using a different logic or different dependencies after the node has been initially created.
@@ -252,7 +267,7 @@ TEST(TestReset, ReactionTest) {
 }
 ```
 
-#### 7. Trigger Mode
+#### 8. Trigger Mode
 
 The `reaction` framework supports various triggering mode to control when reactive computations are re-evaluated. This example demonstrates three mode:
 
@@ -294,7 +309,7 @@ auto a = var(1);
 auto b = expr<MyTrigger>(a + 1);
 ```
 
-#### 8. Invalid Strategies
+#### 9. Invalid Strategies
 
 In the `reaction` framework, all data sources **obtained by users are actually in the form of weak references**, and their actual memory is managed **in the observer map**.
 Users can manually call the **close** method, so that all dependent data sources will also be closed.
@@ -390,4 +405,4 @@ We welcome all forms of contributions to make **Reaction** even better:
    git clone https://github.com/lumia431/reaction.git
    cd reaction
    # Create a feature branch (feat/xxx or fix/xxx)
-   # Submit PR against `master` branch
+   # Submit PR against `dev` branch

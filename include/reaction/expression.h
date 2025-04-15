@@ -159,6 +159,10 @@ public:
         return op(left(), right());
     }
 
+    operator ValueType() {
+        return calculate();
+    }
+
 private:
     L left;
     R right;
