@@ -9,7 +9,6 @@
 #define REACTION_OBSERVERNODE_H
 
 #include "reaction/observerHelper.h"
-#include "reaction/log.h"
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>

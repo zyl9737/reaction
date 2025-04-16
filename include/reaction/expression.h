@@ -13,31 +13,101 @@
 
 namespace reaction {
 
-// Forward declaration of DataSource to be used in ExpressionTraits
-template <typename TriggerPolicy, typename InvalidStrategy, typename Type, typename... Args>
-class DataSource;
+template <typename Op, typename L, typename R>
+class BinaryOpExpr {
+public:
+    using ValueType = typename std::common_type_t<typename L::ValueType, typename R::ValueType>;
+    template <typename Left, typename Right>
+    BinaryOpExpr(Left &&l, Right &&r, Op o = Op{}) :
+        left(std::forward<Left>(l)), right(std::forward<Right>(r)), op(o) {
+    }
 
-// General template for ExpressionTraits
+    auto operator()() const {
+        return calculate();
+    }
+
+    auto calculate() const {
+        return op(left(), right());
+    }
+
+    operator ValueType() {
+        return calculate();
+    }
+
+private:
+    L left;
+    R right;
+    Op op;
+};
+
+struct AddOp {
+    auto operator()(auto &&l, auto &&r) const {
+        return l + r;
+    }
+};
+
+struct MulOp {
+    auto operator()(auto &&l, auto &&r) const {
+        return l * r;
+    }
+};
+
+struct SubOp {
+    auto operator()(auto &&l, auto &&r) const {
+        return l - r;
+    }
+};
+
+struct DivOp {
+    auto operator()(auto &&l, auto &&r) const {
+        return l / r;
+    }
+};
+
 template <typename T>
-struct ExpressionTraits {
-    using Type = T;
+struct ValueWrapper {
+    using ValueType = T;
+    T value;
+
+    template <typename Type>
+    ValueWrapper(Type &&t) :
+        value(std::forward<Type>(t)) {
+    }
+    const T &operator()() const {
+        return value;
+    }
 };
 
-// Specialization for DataSource without Functor (Base case)
-template <typename TriggerPolicy, typename InvalidStrategy, UnInvocaCC T>
-struct ExpressionTraits<DataSource<TriggerPolicy, InvalidStrategy, T>> {
-    using Type = T;
-};
+template <typename Op, typename L, typename R>
+auto make_binary_expr(L &&l, R &&r) {
+    return BinaryOpExpr<Op, ExprWrapper<std::decay_t<L>>, ExprWrapper<std::decay_t<R>>>(
+        std::forward<L>(l),
+        std::forward<R>(r));
+}
 
-// Specialization for DataSource with Functor (Recursive case)
-template <typename TriggerPolicy, typename InvalidStrategy, typename Fun, typename... Args>
-struct ExpressionTraits<DataSource<TriggerPolicy, InvalidStrategy, Fun, Args...>> {
-    using Type = decltype(std::declval<Fun>()(std::declval<typename ExpressionTraits<Args>::Type>()...));
-};
+template <typename L, typename R>
+    requires CustomOpCC<L, R>
+auto operator+(L &&l, R &&r) {
+    return make_binary_expr<AddOp>(std::forward<L>(l), std::forward<R>(r));
+}
 
-// Helper alias to retrieve return type of functors
-template <typename Fun, typename... Args>
-using ReturnType = typename ExpressionTraits<DataSource<void, void, std::decay_t<Fun>, std::decay_t<Args>...>>::Type;
+template <typename L, typename R>
+    requires CustomOpCC<L, R>
+auto operator*(L &&l, R &&r) {
+    return make_binary_expr<MulOp>(std::forward<L>(l), std::forward<R>(r));
+}
+
+template <typename L, typename R>
+    requires CustomOpCC<L, R>
+auto operator-(L &&l, R &&r) {
+    return make_binary_expr<SubOp>(std::forward<L>(l), std::forward<R>(r));
+}
+
+template <typename L, typename R>
+    requires CustomOpCC<L, R>
+auto operator/(L &&l, R &&r) {
+    return make_binary_expr<DivOp>(std::forward<L>(l), std::forward<R>(r));
+}
 
 // General Expression class template (for functor-based expressions)
 template <typename TriggerPolicy, typename Fun, typename... Args>
@@ -141,108 +211,6 @@ protected:
         return this->getValue();
     }
 };
-
-template <typename Op, typename L, typename R>
-class BinaryOpExpr {
-public:
-    using ValueType = typename std::common_type_t<typename L::ValueType, typename R::ValueType>;
-    template <typename Left, typename Right>
-    BinaryOpExpr(Left &&l, Right &&r, Op o = Op{}) :
-        left(std::forward<Left>(l)), right(std::forward<Right>(r)), op(o) {
-    }
-
-    auto operator()() const {
-        return calculate();
-    }
-
-    auto calculate() const {
-        return op(left(), right());
-    }
-
-    operator ValueType() {
-        return calculate();
-    }
-
-private:
-    L left;
-    R right;
-    Op op;
-};
-
-struct AddOp {
-    auto operator()(auto &&l, auto &&r) const {
-        return l + r;
-    }
-};
-
-struct MulOp {
-    auto operator()(auto &&l, auto &&r) const {
-        return l * r;
-    }
-};
-
-struct SubOp {
-    auto operator()(auto &&l, auto &&r) const {
-        return l - r;
-    }
-};
-
-struct DivOp {
-    auto operator()(auto &&l, auto &&r) const {
-        return l / r;
-    }
-};
-
-template <typename T>
-struct ValueWrapper {
-    using ValueType = T;
-    T value;
-
-    template <typename Type>
-    ValueWrapper(Type &&t) :
-        value(std::forward<Type>(t)) {
-    }
-    const T &operator()() const {
-        return value;
-    }
-};
-
-template <typename T>
-using ExprWrapper = std::conditional_t<
-    is_data_weak_ref<T>::value || is_binary_op_expr<T>::value,
-    T,
-    ValueWrapper<T>>;
-
-template <typename Op, typename L, typename R>
-auto make_binary_expr(L &&l, R &&r) {
-    return BinaryOpExpr<Op, ExprWrapper<std::decay_t<L>>, ExprWrapper<std::decay_t<R>>>(
-        std::forward<L>(l),
-        std::forward<R>(r));
-}
-
-template <typename L, typename R>
-    requires CustomOpCC<L, R>
-auto operator+(L &&l, R &&r) {
-    return make_binary_expr<AddOp>(std::forward<L>(l), std::forward<R>(r));
-}
-
-template <typename L, typename R>
-    requires CustomOpCC<L, R>
-auto operator*(L &&l, R &&r) {
-    return make_binary_expr<MulOp>(std::forward<L>(l), std::forward<R>(r));
-}
-
-template <typename L, typename R>
-    requires CustomOpCC<L, R>
-auto operator-(L &&l, R &&r) {
-    return make_binary_expr<SubOp>(std::forward<L>(l), std::forward<R>(r));
-}
-
-template <typename L, typename R>
-    requires CustomOpCC<L, R>
-auto operator/(L &&l, R &&r) {
-    return make_binary_expr<DivOp>(std::forward<L>(l), std::forward<R>(r));
-}
 
 template <typename TriggerPolicy, typename Op, typename L, typename R>
 class Expression<TriggerPolicy, BinaryOpExpr<Op, L, R>>

@@ -2,6 +2,7 @@
 #define OBSERVER_CALLBACK_HASH_H
 
 #include "reaction/concept.h"
+#include "reaction/log.h"
 #include <functional>
 #include <utility>
 #include <atomic>
