@@ -10,19 +10,20 @@
 
 #include "reaction/expression.h"
 #include "reaction/invalidStrategy.h"
+#include <atomic>
 
 namespace reaction {
 
-inline thread_local bool reg_flg = false;
-inline thread_local std::function<void(DataNodePtr)> reg_fun;
+inline thread_local bool g_reg_flg = false;
+inline thread_local std::function<void(DataNodePtr)> g_reg_fun;
 
 struct RegGuard {
     RegGuard() {
-        reg_flg = true;
+        g_reg_flg = true;
     }
     ~RegGuard() {
-        reg_flg = false;
-        reg_fun = nullptr;
+        g_reg_flg = false;
+        g_reg_fun = nullptr;
     }
 };
 
@@ -31,6 +32,7 @@ class DataWeakRef {
 public:
     using InvStrategy = typename DataType::InvStrategy;
     using ValueType = typename DataType::ValueType;
+    using ExprType = typename DataType::ExprType;
 
     // Constructor: increases weak reference count
     explicit DataWeakRef(DataType *ptr) :
@@ -94,8 +96,8 @@ public:
 
     auto operator()() const {
         if constexpr (!std::is_same_v<typename DataType::InvStrategy, FieldStrategy>) {
-            if (reg_flg && m_rawPtr) {
-                std::invoke(reg_fun, m_rawPtr->getShared()); // Call registration function
+            if (g_reg_flg && m_rawPtr) {
+                std::invoke(g_reg_fun, m_rawPtr->getShared()); // Call registration function
             }
         }
         return get();
@@ -116,12 +118,6 @@ public:
         requires DataSourceCC<DataType>
     {
         return getPtr()->getValue(); // Get the value of the data source
-    }
-
-    auto getUpdate() const
-        requires DataSourceCC<DataType>
-    {
-        return getPtr()->evaluate(); // Get the updated value of the data source
     }
 
     auto getRaw() const
@@ -197,11 +193,79 @@ class DataSource : public Expression<TriggerPolicy, Type, Args...>,
 public:
     using Expr = Expression<TriggerPolicy, Type, Args...>;
     using ValueType = typename Expr::ValueType;
+    using ExprType = typename Expr::ExprType;
     using InvStrategy = InvalidStrategy;
     using Expr::Expr; // Inherit constructors from Expr
 
-    ~DataSource() {
+    virtual ~DataSource() {
         notifyDestruction();
+    }
+
+    // Assignment operator to update the value and notify observers
+    template <typename T>
+    DataSource &operator=(T &&t)
+        requires(SimpleExprCC<ExprType>)
+    {
+        value(std::forward<T>(t));
+        return *this;
+    }
+
+    // Addition assignment operator
+    template <typename T>
+    DataSource &operator+=(const T &rhs)
+        requires(SimpleExprCC<ExprType>)
+    {
+        this->updateValue(this->getValue() + rhs);
+        this->notifyObservers(true);
+        return *this;
+    }
+
+    // Subtraction assignment operator
+    template <typename T>
+    DataSource &operator-=(const T &rhs)
+        requires(SimpleExprCC<ExprType>)
+    {
+        this->updateValue(this->getValue() - rhs);
+        this->notifyObservers(true);
+        return *this;
+    }
+
+    // Multiplication assignment operator
+    template <typename T>
+    DataSource &operator*=(const T &rhs)
+        requires(SimpleExprCC<ExprType>)
+    {
+        this->updateValue(this->getValue() * rhs);
+        this->notifyObservers(true);
+        return *this;
+    }
+
+    // Division assignment operator
+    template <typename T>
+    DataSource &operator/=(const T &rhs)
+        requires(SimpleExprCC<ExprType>)
+    {
+        this->updateValue(this->getValue() / rhs);
+        this->notifyObservers(true);
+        return *this;
+    }
+
+    // Prefix increment operator
+    DataSource &operator++()
+        requires(SimpleExprCC<ExprType>)
+    {
+        this->updateValue(this->getValue() + 1);
+        this->notifyObservers(true);
+        return *this;
+    }
+
+    // Prefix decrement operator
+    DataSource &operator--()
+        requires(SimpleExprCC<ExprType>)
+    {
+        this->updateValue(this->getValue() - 1);
+        this->notifyObservers(true);
+        return *this;
     }
 
     // Set new value and notify observers
@@ -213,7 +277,7 @@ public:
     template <InvocaCC F>
     ReactionError set(F &&f) {
         RegGuard guard;
-        reg_fun = [this](DataNodePtr node) {
+        g_reg_fun = [this](DataNodePtr node) {
             this->updateOneOb(node);
         };
         return this->setSource(std::forward<F>(f));
@@ -221,7 +285,7 @@ public:
 
     ReactionError set() {
         RegGuard guard;
-        reg_fun = [this](DataNodePtr node) {
+        g_reg_fun = [this](DataNodePtr node) {
             this->updateOneOb(node);
         };
         return this->setOpExpr();
@@ -232,76 +296,9 @@ public:
         ObserverGraph::getInstance().closeNode(this->getShared());
     }
 
-    // Assignment operator to update the value and notify observers
-    template <typename T>
-    DataSource &operator=(T &&t)
-        requires(!ConstCC<ValueType> && !VoidCC<ValueType>)
-    {
-        value(std::forward<T>(t));
-        return *this;
-    }
-
-    // Addition assignment operator
-    template <typename T>
-    DataSource &operator+=(const T &rhs)
-        requires(!ConstCC<ValueType> && !VoidCC<ValueType>)
-    {
-        this->updateValue(this->getValue() + rhs);
-        this->notifyObservers(true);
-        return *this;
-    }
-
-    // Subtraction assignment operator
-    template <typename T>
-    DataSource &operator-=(const T &rhs)
-        requires(!ConstCC<ValueType> && !VoidCC<ValueType>)
-    {
-        this->updateValue(this->getValue() - rhs);
-        this->notifyObservers(true);
-        return *this;
-    }
-
-    // Multiplication assignment operator
-    template <typename T>
-    DataSource &operator*=(const T &rhs)
-        requires(!ConstCC<ValueType> && !VoidCC<ValueType>)
-    {
-        this->updateValue(this->getValue() * rhs);
-        this->notifyObservers(true);
-        return *this;
-    }
-
-    // Division assignment operator
-    template <typename T>
-    DataSource &operator/=(const T &rhs)
-        requires(!ConstCC<ValueType> && !VoidCC<ValueType>)
-    {
-        this->updateValue(this->getValue() / rhs);
-        this->notifyObservers(true);
-        return *this;
-    }
-
-    // Prefix increment operator
-    DataSource &operator++()
-        requires(!ConstCC<ValueType> && !VoidCC<ValueType>)
-    {
-        this->updateValue(this->getValue() + 1);
-        this->notifyObservers(true);
-        return *this;
-    }
-
-    // Prefix decrement operator
-    DataSource &operator--()
-        requires(!ConstCC<ValueType> && !VoidCC<ValueType>)
-    {
-        this->updateValue(this->getValue() - 1);
-        this->notifyObservers(true);
-        return *this;
-    }
-
     template <typename T>
     void value(T &&t)
-        requires(!ConstCC<ValueType> && !VoidCC<ValueType>)
+        requires(SimpleExprCC<ExprType>)
     {
         this->updateValue(std::forward<T>(t));
         if constexpr (CompareCC<ValueType>) {
@@ -315,9 +312,6 @@ public:
     // Getter functions
     auto get() const {
         return this->getValue();
-    }
-    auto getUpdate() const {
-        return this->evaluate();
     }
     auto getRaw() const {
         return this->getRawPtr();

@@ -14,8 +14,8 @@ int main() {
     using namespace reaction;
 
     // 1. Reactive variables for stock prices
-    auto buyPrice = var(100.0);      // Price at which stock was bought
-    auto currentPrice = var(105.0);  // Current market price
+    auto buyPrice = var(100.0).setName("buyPrice");      // Price at which stock was bought
+    auto currentPrice = var(105.0);                      // Current market price
 
     // 2. Use 'calc' to compute profit or loss amount
     auto profit = calc([=]() {

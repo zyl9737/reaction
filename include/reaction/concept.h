@@ -18,9 +18,10 @@
  struct DataNode;
  struct ActionNode;
  struct FieldNode;
- struct FieldStructBase;
+ struct FieldBase;
  struct LastValStrategy;
  struct AnyType;
+ struct SimpleExpr;
  class ObserverDataNode;
  class ObserverActionNode;
  class ObserverFieldNode;
@@ -139,6 +140,9 @@
  };
 
  template <typename T>
+ concept SimpleExprCC = std::is_same_v<T, SimpleExpr>;
+
+ template <typename T>
  concept TriggerCC = requires(T t) {
      { t.checkTrigger() } -> std::same_as<bool>;
  };
@@ -152,7 +156,7 @@
  concept VarInvalidCC = InvalidCC<T> && !std::is_same_v<std::decay_t<T>, LastValStrategy>;
 
  template <typename T>
- concept HasFieldCC = std::is_base_of_v<FieldStructBase, std::decay_t<T>>;
+ concept HasFieldCC = std::is_base_of_v<FieldBase, std::decay_t<T>>;
 
  template <typename T>
  concept IsBinaryOpExprCC = is_binary_op_expr<T>::value;

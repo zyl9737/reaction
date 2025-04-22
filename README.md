@@ -205,7 +205,7 @@ For complex types with reactive fields allow you to define struct-like variables
 Here's an example of a `PersonField` class:
 
 ```cpp
-class PersonField : public reaction::FieldStructBase {
+class PersonField : public reaction::FieldBase {
 public:
     PersonField(std::string name, int age):
         m_name(reaction::field(this, name)),
@@ -280,7 +280,7 @@ The trigger Mode can be specified by the type parameter
 ```cpp
 using namespace reaction;
 auto stockPrice = var(100.0);
-auto profit = expr<ValueChangeTrigger>(stockPrice() - 100.0);
+auto profit = expr<ChangedTrigger>(stockPrice() - 100.0);
 auto assignAction = action([=]() {  // defalut AlwaysTrigger
     std::cout << "Checky assign, price = " << stockPrice() <<'\n';
 });

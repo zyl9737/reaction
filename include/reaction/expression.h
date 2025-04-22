@@ -114,30 +114,18 @@ template <typename TriggerPolicy, typename Fun, typename... Args>
 class Expression : public Resource<ComplexExpr, ReturnType<Fun, Args...>>, public TriggerPolicy {
 public:
     using ValueType = ReturnType<Fun, Args...>;
+    using ExprType = ComplexExpr;
 
 protected:
     // Sets the source data for the expression and updates the functor
     template <typename F, typename... A>
     ReactionError setSource(F &&f, A &&...args) {
         if constexpr (std::convertible_to<ReturnType<std::decay_t<F>, typename is_data_weak_ref<std::decay_t<A>>::Type...>, ValueType>) {
-            bool repeat = false;
-
-            // Check if we should repeat the update
-            if (!this->updateObservers(repeat, [this](bool changed) { this->valueChanged(changed); }, std::forward<A>(args)...)) {
+            if (!this->updateObservers(std::forward<A>(args)...)) {
                 return ReactionError::CycleDepErr;
             }
 
-            // Choose the right functor based on whether we repeat the update or not
-            if (repeat) {
-                setFunctor(createUpdateFunRef(std::forward<F>(f), std::forward<A>(args)...));
-            } else {
-                setFunctor(createGetFunRef(std::forward<F>(f), std::forward<A>(args)...));
-            }
-
-            // Handle trigger policy for threshold
-            if constexpr (std::is_same_v<TriggerPolicy, ThresholdTrigger>) {
-                TriggerPolicy::setRepeatDependent(repeat);
-            }
+            setFunctor(createGetFunRef(std::forward<F>(f), std::forward<A>(args)...));
 
             if constexpr (!std::is_void_v<ValueType>) {
                 this->updateValue(evaluate());
@@ -153,8 +141,7 @@ protected:
     }
 
     void updateOneOb(DataNodePtr node) {
-        bool repeat = false;
-        this->updateOneObserver(repeat, [this](bool changed) { this->valueChanged(changed); }, node);
+        this->updateOneObserver(node);
     }
 
     // Evaluates the functor and returns its result
@@ -168,7 +155,7 @@ protected:
 
     // Value change notification based on trigger policy
     void valueChanged(bool changed) {
-        if constexpr (std::is_same_v<TriggerPolicy, ValueChangeTrigger>) {
+        if constexpr (std::is_same_v<TriggerPolicy, ChangedTrigger>) {
             this->setChanged(changed);
         }
 
@@ -204,6 +191,7 @@ class Expression<TriggerPolicy, Type> : public Resource<SimpleExpr, std::decay_t
 public:
     using Resource<SimpleExpr, std::decay_t<Type>>::Resource;
     using ValueType = Type;
+    using ExprType = SimpleExpr;
 
 protected:
     // Direct value retrieval for simple expressions
@@ -217,6 +205,7 @@ class Expression<TriggerPolicy, BinaryOpExpr<Op, L, R>>
     : public Expression<AlwaysTrigger, std::function<typename std::common_type_t<typename L::ValueType, typename R::ValueType>()>> {
 public:
     using ValueType = typename std::common_type_t<typename L::ValueType, typename R::ValueType>;
+    using ExprType = SimpleExpr;
     template <typename T>
     Expression(T &&expr) :
         m_expr(std::forward<T>(expr)) {

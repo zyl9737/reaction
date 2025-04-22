@@ -14,8 +14,8 @@
 namespace reaction {
 
 // Base struct for fields (empty base class)
-struct FieldStructBase {
-    ~FieldStructBase() {
+struct FieldBase {
+    ~FieldBase() {
         FieldGraph::getInstance().deleteObj(this);
     }
 };
@@ -25,11 +25,11 @@ template <typename Type>
 struct FieldIdentity {
     // Constructor to initialize Objdata pointer and value
     template <typename T>
-    FieldIdentity(FieldStructBase *ptr, T &&t) :
+    FieldIdentity(FieldBase *ptr, T &&t) :
         ObjPtr(ptr), value(std::forward<T>(t)) {
     }
 
-    FieldStructBase *ObjPtr; // Pointer to Objdata
+    FieldBase *ObjPtr; // Pointer to Objdata
     Type value;               // Field value
 };
 

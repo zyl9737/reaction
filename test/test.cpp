@@ -46,23 +46,12 @@ TEST(TestCommonUse, ReactionTest) {
 
 // Test for complex calculations with multiple dependencies
 TEST(TestComplexCal, ReactionTest) {
-    auto a = reaction::var(1);
-    a.setName("a");
-
-    auto dsA = reaction::calc([](int aa) { return aa; }, a);
-    dsA.setName("dsA");
-
-    auto dsB = reaction::calc([](int aa, int dsAValue) { return aa + dsAValue; }, a, dsA);
-    dsB.setName("dsB");
-
-    auto dsC = reaction::calc([](int aa, int dsAValue, int dsBValue) { return aa + dsAValue + dsBValue; }, a, dsA, dsB);
-    dsC.setName("dsC");
-
-    auto dsD = reaction::calc([](int dsAValue, int dsBValue, int dsCValue) { return dsAValue + dsBValue + dsCValue; }, dsA, dsB, dsC);
-    dsD.setName("dsD");
-
-    auto dsE = reaction::calc([](int dsBValue, int dsCValue, int dsDValue) { return dsBValue * dsCValue + dsDValue; }, dsB, dsC, dsD);
-    dsE.setName("dsE");
+    auto a = reaction::var(1).setName("a");
+    auto dsA = reaction::calc([](int aa) { return aa; }, a).setName("dsA");
+    auto dsB = reaction::calc([](int aa, int dsAValue) { return aa + dsAValue; }, a, dsA).setName("dsB");
+    auto dsC = reaction::calc([](int aa, int dsAValue, int dsBValue) { return aa + dsAValue + dsBValue; }, a, dsA, dsB).setName("dsC");
+    auto dsD = reaction::calc([](int dsAValue, int dsBValue, int dsCValue) { return dsAValue + dsBValue + dsCValue; }, dsA, dsB, dsC).setName("dsD");
+    auto dsE = reaction::calc([](int dsBValue, int dsCValue, int dsDValue) { return dsBValue * dsCValue + dsDValue; }, dsB, dsC, dsD).setName("dsE");
 
     EXPECT_EQ(dsA.get(), 1);
     EXPECT_EQ(dsB.get(), 2);
@@ -142,33 +131,60 @@ TEST(TestSelfDependency, ReactionTest) {
 
 // Test for repeat dependencies and the number of trigger counts
 TEST(TestRepeatDependency, ReactionTest) {
-    auto a = reaction::var(1);
-    auto b = reaction::var(2);
-    auto c = reaction::var(3);
+    // ds → A, ds → a, A → a
+    auto a = reaction::var(1).setName("a");
+    auto b = reaction::var(2).setName("b");
 
     int triggerCount = 0;
-    auto dsA = reaction::calc([&triggerCount](int aa, int bb) {
-                                                    ++triggerCount;
-                                                    return aa + bb; }, a, b);
+    auto dsA = reaction::calc([&]() {
+                               ++triggerCount;
+                               return a() + b(); }).setName("dsA");
 
-    auto dsB = reaction::calc([](int cc, int dsAVal) { return cc + dsAVal; }, c, dsA);
-
-    a.setName("a");
-    b.setName("b");
-    c.setName("c");
-
-    dsA.setName("dsA");
-    dsB.setName("dsB");
+    auto dsB = reaction::calc([&]() { return a() + dsA(); }).setName("dsB");
 
     triggerCount = 0;
     *a = 2;
     EXPECT_EQ(triggerCount, 1);
+    EXPECT_EQ(dsB.get(), 6);
+}
 
-    dsB.set([](int aa, int dsAVal) { return aa + dsAVal; }, a, dsA);
+TEST(TestRepeatDependency2, ReactionTest) {
+    // ds → A, ds → B, ds → C, A → a, B → a
+    int triggerCountA = 0;
+    int triggerCountB = 0;
+    auto a = reaction::var(1).setName("a");
+    auto A = reaction::calc([&]() { ++triggerCountA; return a() + 1; }).setName("A");
+    auto B = reaction::calc([&]() { ++triggerCountB; return a() + 2; }).setName("B");
+    auto C = reaction::calc([&]() { return 5; }).setName("C");
+    auto ds = reaction::calc([&]() { return A() + B() + C(); }).setName("ds");
 
-    triggerCount = 0;
-    *a = 3;
-    EXPECT_EQ(triggerCount, 3); // Multiple triggers due to repeat dependency
+    triggerCountA = 0;
+    triggerCountB = 0;
+    *a = 2;
+    EXPECT_EQ(triggerCountA, 1);
+    EXPECT_EQ(triggerCountB, 1);
+    EXPECT_EQ(ds.get(), 12);
+}
+
+TEST(TestRepeatDependency3, ReactionTest) {
+    // ds → A, ds → B, A → A1, A1 → A2, A2 → a, B → B1, B1 → a
+    auto a = reaction::var(1).setName("a");
+    int triggerCountA = 0;
+    int triggerCountB = 0;
+    auto A2 = reaction::calc([&]() { ++triggerCountA; return a() * 2; }).setName("A2");
+    auto A1 = reaction::calc([&]() { return A2() + 1; }).setName("A1");
+    auto A = reaction::calc([&]() { return A1() - 1; }).setName("A");
+
+    auto B1 = reaction::calc([&]() { ++triggerCountB; return a() - 1; }).setName("B1");
+    auto B = reaction::calc([&]() { return B1() + 1; }).setName("B");
+
+    auto ds = reaction::calc([&]() { return A() + B(); }).setName("ds");
+    triggerCountA = 0;
+    triggerCountB = 0;
+    *a = 2;
+    EXPECT_EQ(triggerCountA, 1);
+    EXPECT_EQ(triggerCountB, 1);
+    EXPECT_EQ(ds.get(), 6);
 }
 
 // Test for cyclic dependencies, expecting failure
@@ -242,7 +258,7 @@ TEST(TestValueChangeTrigger, ReactionTest) {
     auto ds = reaction::calc([&triggerCountA](int aa, double bb) {
                                                 ++triggerCountA;
                                                 return std::to_string(aa) + std::to_string(bb); }, a, b);
-    auto dds = reaction::calc<reaction::ValueChangeTrigger>([&triggerCountB](auto cc, auto dsds) {
+    auto dds = reaction::calc<reaction::ChangedTrigger>([&triggerCountB](auto cc, auto dsds) {
                                                                                ++triggerCountB;
                                                                                return cc + dsds; }, c, ds);
     EXPECT_EQ(triggerCountA, 1);
@@ -501,7 +517,7 @@ TEST(TestCustomStruct, ReactionTest) {
 }
 
 // Person class with fields for name, age, and gender
-class PersonField : public reaction::FieldStructBase {
+class PersonField : public reaction::FieldBase {
 public:
     // Constructor to initialize PersonField with name, age, and gender
     PersonField(std::string name, int age, bool male) :
