@@ -28,62 +28,53 @@ void stressTest_example() {
     // Layer 1: Add integer and double
     auto layer1 = calc([](int a, double b) {
         return a + b;
-    },
-                                         base1, base2);
+    }, base1, base2);
 
     // Layer 2: Multiply or divide based on the flag
     auto layer2 = calc([](double val, bool flag) {
         return flag ? val * 2 : val / 2;
-    },
-                                         layer1, base3);
+    }, layer1, base3);
 
     // Layer 3: Convert double value to a string
     auto layer3 = calc([](double val) {
         return "Value:" + std::to_string(val);
-    },
-                                         layer2);
+    }, layer2);
 
     // Layer 4: Append integer to string
     auto layer4 = calc([](const std::string &s, const std::string &s4) {
         return s + "_" + s4;
-    },
-                                         layer3, base4);
+    }, layer3, base4);
 
     // Layer 5: Get the length of the string
     auto layer5 = calc([](const std::string &s) {
         return s.length();
-    },
-                                         layer4);
+    }, layer4);
 
     // Layer 6: Create a vector of double values
     auto layer6 = calc([](size_t len, int b5) {
         return std::vector<int>(len, b5);
-    },
-                                         layer5, base5);
+    }, layer5, base5);
 
     // Layer 7: Sum all elements in the vector
     auto layer7 = calc([](const std::vector<int> &vec) {
         return std::accumulate(vec.begin(), vec.end(), 0);
-    },
-                                         layer6);
+    }, layer6);
 
     // Layer 8: Create a ProcessedData object with checksum and info
     auto layer8 = calc([](int sum) {
         return ProcessedData{"ProcessedData", static_cast<int>(sum)};
-    },
-                                         layer7);
+    }, layer7);
 
     // Layer 9: Combine info and checksum into a string
     auto layer9 = calc([](const ProcessedData &calc) {
         return calc.info + "|" + std::to_string(calc.checksum);
-    },
-                                         layer8);
+    }, layer8);
 
     // Final layer: Add "Final:" prefix to the result
     auto finalLayer = calc([](const std::string &s) {
         return "Final:" + s;
-    },
-                                             layer9);
+    }, layer9);
+
     const int ITERATIONS = 100000;
     auto start = steady_clock::now(); // Start measuring time
     // Perform stress test for the given number of iterations

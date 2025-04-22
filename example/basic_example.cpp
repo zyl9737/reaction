@@ -18,7 +18,7 @@ int main() {
     auto currentPrice = var(105.0);                      // Current market price
 
     // 2. Use 'calc' to compute profit or loss amount
-    auto profit = calc([=]() {
+    auto profit = calc([&]() {
         return currentPrice() - buyPrice();
     });
 
@@ -26,7 +26,7 @@ int main() {
     auto profitPercent = expr(std::abs(currentPrice - buyPrice) / buyPrice * 100);
 
     // 4. Use 'action' to print the log whenever values change
-    auto logger = action([=]() {
+    auto logger = action([&]() {
         std::cout << std::fixed << std::setprecision(2);
         std::cout << "[Stock Update] Current Price: $" << currentPrice()
                   << ", Profit: $" << profit()

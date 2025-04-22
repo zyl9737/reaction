@@ -7,7 +7,7 @@
 [![TMP](https://img.shields.io/badge/Template-Metaprogramming-orange.svg)](https://en.cppreference.com/w/cpp/language/templates)
 [![MVVM](https://img.shields.io/badge/Pattern-MVVM%2FMVC-9cf.svg)](https://en.wikipedia.org/wiki/Model–view–viewmodel)
 
-A lightweight, header-only reactive programming framework leveraging modern C++20 features for building efficient dataflow applications.
+Reaction is a blazing-fast, modern C++20 header-only reactive framework that brings React/Vue-style dataflow to native C++ – perfect for UI, game logic, and more.
 
 ### 🎯 **Focused on UI Dataflow Management**
 
@@ -24,7 +24,6 @@ A lightweight, header-only reactive programming framework leveraging modern C++2
 ### 🚀 Performance Optimized
 
 - **Zero-cost abstractions** through template metaprogramming
-- **Virtual-Free Design** Pure compile-time polymorphism
 - Minimal runtime overhead with **smart change propagation**
 - Propagation efficiency **at the level of millions per second**
 
@@ -86,7 +85,7 @@ int main() {
     auto currentPrice = var(105.0);  // Current market price
 
     // 2. Use 'calc' to compute profit or loss amount
-    auto profit = calc([=]() {
+    auto profit = calc([&]() {
         return currentPrice() - buyPrice();
     });
 
@@ -94,7 +93,7 @@ int main() {
     auto profitPercent = expr(std::abs(currentPrice - buyPrice) / buyPrice * 100);
 
     // 4. Use 'action' to print the log whenever values change
-    auto logger = action([=]() {
+    auto logger = action([&]() {
         std::cout << std::fixed << std::setprecision(2);
         std::cout << "[Stock Update] Current Price: $" << currentPrice()
                   << ", Profit: $" << profit()
@@ -259,10 +258,10 @@ TEST(TestReset, ReactionTest) {
     auto ret = ds.set([=]() { return b() + "set"; });
     EXPECT_EQ(ret, reaction::ReactionError::NoErr);
 
-    ret = ddds.set([=]() { return a(); });
+    ret = ds.set([=]() { return a(); });
     EXPECT_EQ(ret, reaction::ReactionError::ReturnTypeErr);
 
-    ret = ddds.set([=]() { return ds(); });
+    ret = ds.set([=]() { return ds(); });
     EXPECT_EQ(ret, reaction::ReactionError::CycleDepErr);
 }
 ```
