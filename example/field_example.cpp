@@ -14,18 +14,8 @@ class Person : public reaction::FieldBase {
 public:
     // Constructor initializing person data
     Person(const std::string &name, int age) :
-        m_name(reaction::field(this, name)),
-        m_age(reaction::field(this, age)) {
-    }
-
-    Person(const Person &p) :
-        m_name(reaction::field(this, p.m_name.get())),
-        m_age(reaction::field(this, p.m_age.get())) {
-    }
-
-    Person(Person &&p) :
-        m_name(reaction::field(this, p.m_name.get())),
-        m_age(reaction::field(this, p.m_age.get())) {
+        m_name(field(name)),
+        m_age(field(age)) {
     }
 
     // Getter for name

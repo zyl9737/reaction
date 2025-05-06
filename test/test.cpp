@@ -521,17 +521,7 @@ class PersonField : public reaction::FieldBase {
 public:
     // Constructor to initialize PersonField with name, age, and gender
     PersonField(std::string name, int age, bool male) :
-        m_name(reaction::field(this, name)), m_age(reaction::field(this, age)), m_male(male) {
-    }
-
-    // Copy constructor
-    PersonField(const PersonField &p) :
-        m_name(reaction::field(this, p.m_name.get())), m_age(reaction::field(this, p.m_age.get())), m_male(p.m_male) {
-    }
-
-    // Move constructor
-    PersonField(PersonField &&p) :
-        m_name(reaction::field(this, p.m_name.get())), m_age(reaction::field(this, p.m_age.get())), m_male(p.m_male) {
+        m_name(field(name)), m_age(field(age)), m_male(male) {
     }
 
     // Getter and setter for name
@@ -562,17 +552,23 @@ TEST(TestFieldSource, ReactionTest) {
     // Create a PersonField object
     PersonField person{"lummy", 18, true};
     auto p = reaction::var(person);
+    auto p2 = p;
     auto a = reaction::var(1);
 
     // Create a data source that combines the integer 'a' and the person's name
     auto ds = reaction::calc([](int aa, auto pp) { return std::to_string(aa) + pp.getName(); }, a, p);
+    auto ds2 = reaction::calc([](int aa, auto pp) { return std::to_string(aa) + pp.getName(); }, a, p);
+
 
     // Verify the result
     EXPECT_EQ(ds.get(), "1lummy");
+    EXPECT_EQ(ds2.get(), "1lummy");
 
     // Update person's name and verify the updated result
     p->setName("lummy-new");
     EXPECT_EQ(ds.get(), "1lummy-new");
+    EXPECT_EQ(ds2.get(), "1lummy-new");
+
 }
 
 int main(int argc, char **argv) {

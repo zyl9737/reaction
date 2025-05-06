@@ -9,9 +9,8 @@
 #define REACTION_OBSERVERNODE_H
 
 #include "reaction/concept.h"
+#include "reaction/utility.h"
 #include "reaction/log.h"
-#include <unordered_set>
-#include <unordered_map>
 #include <vector>
 #include <algorithm>
 #include <variant>
@@ -25,7 +24,6 @@ struct FieldNode {};
 
 using DataNodePtr = std::shared_ptr<ObserverDataNode>;
 using ActionNodePtr = std::shared_ptr<ObserverActionNode>;
-using FieldNodePtr = std::shared_ptr<ObserverFieldNode>;
 
 using NodeVariant = std::variant<DataNodePtr, ActionNodePtr>;
 
@@ -52,63 +50,6 @@ struct NodeVariantEqual {
 };
 
 inline thread_local std::unordered_set<NodeVariant, NodeVariantHash, NodeVariantEqual> g_wait_list;
-
-// FieldGraph handles field-specific operations
-class FieldGraph {
-public:
-    static FieldGraph &getInstance() {
-        static FieldGraph instance;
-        return instance;
-    }
-
-    // Add a field node to the graph
-    void addNode(FieldNodePtr node) {
-        m_fieldList.insert(node);
-    }
-
-    // Close a field node in the graph
-    void closeNode(FieldNodePtr node) {
-        m_fieldList.erase(node);
-    }
-
-    // Add a field to the graph
-    void addObj(FieldBase *obj, ObserverFieldNode *node) {
-        m_fieldMap[obj].insert(node);
-    }
-
-    // Delete a field from the graph
-    void deleteObj(FieldBase *obj) {
-        m_fieldMap.erase(obj);
-    }
-
-    // Set the field associated with a objdata pointer
-    void setField(FieldBase *obj, DataNodePtr objPtr) {
-        for (auto node : m_fieldMap[obj]) {
-            m_fieldObservers[objPtr].insert(node);
-        }
-    }
-
-    void deleteObservers(DataNodePtr node) {
-        m_fieldObservers.erase(node);
-    }
-
-    // Get the objdata for a field node
-    std::unordered_set<ObserverFieldNode *> getObservers(DataNodePtr node) {
-        auto it = m_fieldObservers.find(node);
-        if (it != m_fieldObservers.end()) {
-            return it->second;
-        } else {
-            return {};
-        }
-    }
-
-private:
-    FieldGraph() {
-    }
-    std::unordered_map<FieldBase *, std::unordered_set<ObserverFieldNode *>> m_fieldMap;
-    std::unordered_map<DataNodePtr, std::unordered_set<ObserverFieldNode *>> m_fieldObservers;
-    std::unordered_set<FieldNodePtr> m_fieldList;
-};
 
 // ObserverGraph handles dependencies between nodes and manages observers
 class ObserverGraph {
@@ -139,12 +80,6 @@ public:
             if (hasCycle(source, target)) {
                 Log::error("Cycle dependency detected, node = {}. Cycle dependent = {}", source->getName(), target->getName());
                 return false;
-            }
-
-            if (auto obs = FieldGraph::getInstance().getObservers(target); !obs.empty()) {
-                for (auto &ob : obs) {
-                    ob->addOb(source);
-                }
             }
         }
 
@@ -187,13 +122,6 @@ private:
             auto it = m_observers[dep].find(node);
             if (it != m_observers[dep].end()) {
                 dep->deleteOb(*it);
-                if constexpr (std::is_same_v<std::decay_t<decltype(*it)>, DataNodePtr>) {
-                    if (auto obs = FieldGraph::getInstance().getObservers(dep); !obs.empty()) {
-                        for (auto &ob : obs) {
-                            ob->deleteCb(*it);
-                        }
-                    }
-                }
             }
             m_observers[dep].erase(node);
         }
@@ -387,6 +315,7 @@ protected:
 
 private:
     friend class ObserverGraph;
+    friend class FieldGraph;
     void addOb(const NodeVariant &ob) {
         m_observers.emplace_back(ob);
     }
@@ -420,10 +349,35 @@ public:
     using SourceType = ActionNode;
 };
 
-// ObserverFieldNode handles field node-specific observers
-class ObserverFieldNode : public ObserverBase<ObserverFieldNode> {
+// FieldGraph handles field-specific operations
+class FieldGraph {
 public:
-    using SourceType = FieldNode;
+    static FieldGraph &getInstance() {
+        static FieldGraph instance;
+        return instance;
+    }
+
+    // Add a field to the graph
+    void addObj(uint64_t id, DataNodePtr node) {
+        m_fieldMap[id].insert(node);
+    }
+
+    // Delete a field from the graph
+    void deleteObj(uint64_t id) {
+        m_fieldMap.erase(id);
+    }
+
+    // Set the field associated with a objdata pointer
+    void setField(uint64_t id, DataNodePtr objPtr) {
+        for (auto node : m_fieldMap[id]) {
+            objPtr->updateOneObserver(node->getShared());
+        }
+    }
+
+private:
+    FieldGraph() {
+    }
+    std::unordered_map<uint64_t, std::unordered_set<DataNodePtr>> m_fieldMap;
 };
 
 } // namespace reaction

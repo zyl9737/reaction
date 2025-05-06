@@ -10,7 +10,6 @@
 
 #include "reaction/expression.h"
 #include "reaction/invalidStrategy.h"
-#include <atomic>
 
 namespace reaction {
 
@@ -27,64 +26,58 @@ struct RegGuard {
     }
 };
 
-template <typename DataType>
-class DataWeakRef {
+template <typename ReactType>
+class React {
 public:
-    using InvStrategy = typename DataType::InvStrategy;
-    using ValueType = typename DataType::ValueType;
-    using ExprType = typename DataType::ExprType;
+    using InvStrategy = typename ReactType::InvStrategy;
+    using ValueType = typename ReactType::ValueType;
+    using ExprType = typename ReactType::ExprType;
 
     // Constructor: increases weak reference count
-    explicit DataWeakRef(DataType *ptr) :
-        m_rawPtr(ptr) {
-        if (m_rawPtr) {
-            m_rawPtr->addWeakRef(this, m_cb); // Increment weak reference count in DataType
-        }
+    explicit React(std::shared_ptr<ReactType> ptr = nullptr) :
+        m_weakPtr(ptr) {
+            if (auto p = m_weakPtr.lock())
+            p->addWeakRef();
     }
 
-    // Destructor: decreases weak reference count
-    ~DataWeakRef() {
-        if (m_rawPtr) {
-            m_rawPtr->releaseWeakRef(this); // Decrement weak reference count in DataType
-        }
+    // Destructor that releases the weak reference
+    ~React() {
+        if (auto p = m_weakPtr.lock())
+            p->releaseWeakRef();
     }
 
-    // Copy constructor: increases weak reference count
-    DataWeakRef(const DataWeakRef &other) :
-        m_rawPtr(other.m_rawPtr) {
-        if (m_rawPtr) {
-            m_rawPtr->addWeakRef(this, m_cb); // Increment weak reference count in DataType
-        }
+    // Copy constructor, adding a weak reference
+    React(const React &other) :
+        m_weakPtr(other.m_weakPtr) {
+        if (auto p = m_weakPtr.lock())
+            p->addWeakRef();
     }
 
-    // Move constructor: transfers ownership, nullifies the source pointer
-    DataWeakRef(DataWeakRef &&other) noexcept :
-        m_rawPtr(other.m_rawPtr) {
-        other.m_rawPtr = nullptr; // Nullify the moved-from object
+    // Move constructor
+    React(React &&other) noexcept :
+        m_weakPtr(std::move(other.m_weakPtr)) {
+        other.m_weakPtr.reset();
     }
 
-    // Copy assignment: increases weak reference count after releasing current reference
-    DataWeakRef &operator=(const DataWeakRef &other) noexcept {
+    // Copy assignment operator, adding a weak reference
+    React &operator=(const React &other) noexcept {
         if (this != &other) {
-            if (m_rawPtr) {
-                m_rawPtr->releaseWeakRef(this); // Decrement weak reference count
-            }
-            m_rawPtr = other.m_rawPtr;
-            if (m_rawPtr) {
-                m_rawPtr->addWeakRef(this, m_cb); // Increment weak reference count
-            }
+            if (auto p = m_weakPtr.lock())
+                p->releaseWeakRef();
+            m_weakPtr = other.m_weakPtr;
+            if (auto p = m_weakPtr.lock())
+                p->addWeakRef();
         }
         return *this;
     }
 
-    // Move assignment: transfers ownership, nullifies the source pointer
-    DataWeakRef &operator=(DataWeakRef &&other) noexcept {
+    // Move assignment operator
+    React &operator=(React &&other) noexcept {
         if (this != &other) {
-            if (m_rawPtr) {
-                m_rawPtr->releaseWeakRef(this); // Decrement weak reference count
-            }
-            m_rawPtr = other.m_rawPtr;
-            other.m_rawPtr = nullptr; // Nullify the moved-from object
+            if (auto p = m_weakPtr.lock())
+                p->releaseWeakRef();
+            m_weakPtr = std::move(other.m_weakPtr);
+            other.m_weakPtr.reset();
         }
         return *this;
     }
@@ -95,39 +88,37 @@ public:
     }
 
     auto operator()() const {
-        if constexpr (!std::is_same_v<typename DataType::InvStrategy, FieldStrategy>) {
-            if (g_reg_flg && m_rawPtr) {
-                std::invoke(g_reg_fun, m_rawPtr->getShared()); // Call registration function
-            }
+        if (g_reg_flg) {
+            std::invoke(g_reg_fun, getPtr()); // Call registration function
         }
         return get();
     }
 
     // Dereference operator: returns the underlying object
-    DataType &operator*() const {
+    ReactType &operator*() const {
         return *getPtr(); // Dereference the raw pointer
     }
 
     // Explicit conversion to bool: checks if the raw pointer is valid
     explicit operator bool() const {
-        return m_rawPtr != nullptr; // Returns true if the pointer is not null
+        return !m_weakPtr.expired(); // Returns true if the pointer is not null
     }
 
-    // Getter functions for accessing data from the DataSource
+    // Getter functions for accessing data from the ReactImpl
     auto get() const
-        requires DataSourceCC<DataType>
+        requires DataSourceCC<ReactType>
     {
         return getPtr()->getValue(); // Get the value of the data source
     }
 
     auto getRaw() const
-        requires DataSourceCC<DataType>
+        requires DataSourceCC<ReactType>
     {
         return getPtr()->getRaw(); // Get the raw value of the data source
     }
 
     decltype(auto) getRef() const
-        requires DataSourceCC<DataType>
+        requires DataSourceCC<ReactType>
     {
         return getPtr()->getRef(); // Get the reference to the data source
     }
@@ -137,7 +128,7 @@ public:
     }
 
     template <typename T>
-    DataWeakRef &value(T &&t) {
+    React &value(T &&t) {
         getPtr()->value(std::forward<T>(t));
         return *this;
     }
@@ -149,19 +140,19 @@ public:
 
     // Set a threshold for the source
     template <typename F, typename... A>
-    DataWeakRef &setThreshold(F &&f, A &&...args) {
+    React &setThreshold(F &&f, A &&...args) {
         getPtr()->setThreshold(std::forward<F>(f), std::forward<A>(args)...); // Set threshold for the data source
         return *this;
     }
 
     // Close the data source
-    DataWeakRef &close() {
+    React &close() {
         getPtr()->close(); // Close the data source
         return *this;
     }
 
     // Set and get the name of the data source
-    DataWeakRef &setName(const std::string &name) {
+    React &setName(const std::string &name) {
         getPtr()->setName(name); // Set the name of the data source
         return *this;
     }
@@ -170,26 +161,22 @@ public:
         return getPtr()->getName(); // Get the name of the data source
     }
 
-private:
+protected:
     // Helper function to safely access the raw pointer, throws if null
-    DataType *getPtr() const {
-        if (!m_rawPtr) {
+    std::shared_ptr<ReactType> getPtr() const {
+        if (m_weakPtr.expired()) {
             throw std::runtime_error("Null weak pointer access"); // Throws if the pointer is null
         }
-        return m_rawPtr; // Returns the raw pointer
+        return m_weakPtr.lock(); // Returns the raw pointer
     }
 
-    // Raw pointer to the DataSource object
-    DataType *m_rawPtr = nullptr; // Initialize the pointer to null
-    std::function<void()> m_cb = [this]() {
-        m_rawPtr = nullptr;
-    };
+    std::weak_ptr<ReactType> m_weakPtr; // Initialize the pointer to null
 };
 
-// DataSource class template that handles the value, observers, and invalidation strategies
+// ReactImpl class template that handles the value, observers, and invalidation strategies
 template <typename TriggerPolicy, typename InvalidStrategy, typename Type, typename... Args>
-class DataSource : public Expression<TriggerPolicy, Type, Args...>,
-                   private InvalidStrategy {
+class ReactImpl : public Expression<TriggerPolicy, Type, Args...>,
+                  public InvalidStrategy {
 public:
     using Expr = Expression<TriggerPolicy, Type, Args...>;
     using ValueType = typename Expr::ValueType;
@@ -197,13 +184,11 @@ public:
     using InvStrategy = InvalidStrategy;
     using Expr::Expr; // Inherit constructors from Expr
 
-    virtual ~DataSource() {
-        notifyDestruction();
-    }
+    virtual ~ReactImpl() {}
 
     // Assignment operator to update the value and notify observers
     template <typename T>
-    DataSource &operator=(T &&t)
+    ReactImpl &operator=(T &&t)
         requires(SimpleExprCC<ExprType>)
     {
         value(std::forward<T>(t));
@@ -212,7 +197,7 @@ public:
 
     // Addition assignment operator
     template <typename T>
-    DataSource &operator+=(const T &rhs)
+    ReactImpl &operator+=(const T &rhs)
         requires(SimpleExprCC<ExprType>)
     {
         this->updateValue(this->getValue() + rhs);
@@ -222,7 +207,7 @@ public:
 
     // Subtraction assignment operator
     template <typename T>
-    DataSource &operator-=(const T &rhs)
+    ReactImpl &operator-=(const T &rhs)
         requires(SimpleExprCC<ExprType>)
     {
         this->updateValue(this->getValue() - rhs);
@@ -232,7 +217,7 @@ public:
 
     // Multiplication assignment operator
     template <typename T>
-    DataSource &operator*=(const T &rhs)
+    ReactImpl &operator*=(const T &rhs)
         requires(SimpleExprCC<ExprType>)
     {
         this->updateValue(this->getValue() * rhs);
@@ -242,7 +227,7 @@ public:
 
     // Division assignment operator
     template <typename T>
-    DataSource &operator/=(const T &rhs)
+    ReactImpl &operator/=(const T &rhs)
         requires(SimpleExprCC<ExprType>)
     {
         this->updateValue(this->getValue() / rhs);
@@ -251,7 +236,7 @@ public:
     }
 
     // Prefix increment operator
-    DataSource &operator++()
+    ReactImpl &operator++()
         requires(SimpleExprCC<ExprType>)
     {
         this->updateValue(this->getValue() + 1);
@@ -260,7 +245,7 @@ public:
     }
 
     // Prefix decrement operator
-    DataSource &operator--()
+    ReactImpl &operator--()
         requires(SimpleExprCC<ExprType>)
     {
         this->updateValue(this->getValue() - 1);
@@ -291,7 +276,7 @@ public:
         return this->setOpExpr();
     }
 
-    // Close the DataSource and remove it from the observer graph
+    // Close the ReactImpl and remove it from the observer graph
     void close() {
         ObserverGraph::getInstance().closeNode(this->getShared());
     }
@@ -320,32 +305,21 @@ public:
     }
 
 private:
-    // Friend class to allow access to private methods for weak reference management
-    template <typename T>
-    friend class DataWeakRef;
-
-    // Methods for managing weak references
-    void addWeakRef(DataWeakRef<DataSource> *ptr, std::function<void()> &f) {
+    void addWeakRef() {
         m_weakRefCount++;
-        m_destructionCallbacks.insert({ptr, f});
     }
 
-    void releaseWeakRef(DataWeakRef<DataSource> *ptr) {
-        --m_weakRefCount;
-        m_destructionCallbacks.erase(ptr);
-        if (m_weakRefCount == 0) {
+    void releaseWeakRef() {
+        if (--m_weakRefCount == 0) {
             this->handleInvalid(*this);
         }
     }
 
-    void notifyDestruction() {
-        for (auto &[ptr, cb] : m_destructionCallbacks) {
-            cb();
-        }
-    }
+    template <typename T>
+    friend class React;
+
     // Atomic counter for weak references
     std::atomic<int> m_weakRefCount{0};
-    std::unordered_map<DataWeakRef<DataSource> *, std::function<void()>> m_destructionCallbacks;
 };
 
 } // namespace reaction

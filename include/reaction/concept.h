@@ -17,23 +17,21 @@
  // Forward declarations
  struct DataNode;
  struct ActionNode;
- struct FieldNode;
- struct FieldBase;
  struct LastValStrategy;
  struct AnyType;
  struct SimpleExpr;
+ class FieldBase;
  class ObserverDataNode;
  class ObserverActionNode;
- class ObserverFieldNode;
 
  template <typename TriggerPolicy, typename InvalidStrategy, typename Type, typename... Args>
- class DataSource;
+ class ReactImpl;
 
  template <typename Op, typename L, typename R>
  class BinaryOpExpr;
 
  template <typename T>
- class DataWeakRef;
+ class React;
 
  template <typename T>
  struct ValueWrapper;
@@ -59,7 +57,7 @@
  };
 
  template <typename T>
- struct is_data_weak_ref<DataWeakRef<T>> : std::true_type {
+ struct is_data_weak_ref<React<T>> : std::true_type {
      using Type = T;
  };
 
@@ -93,17 +91,17 @@
  };
 
  template <typename TriggerPolicy, typename InvalidStrategy, UnInvocaCC T>
- struct ExpressionTraits<DataSource<TriggerPolicy, InvalidStrategy, T>> {
+ struct ExpressionTraits<ReactImpl<TriggerPolicy, InvalidStrategy, T>> {
      using Type = T;
  };
 
  template <typename TriggerPolicy, typename InvalidStrategy, typename Fun, typename... Args>
- struct ExpressionTraits<DataSource<TriggerPolicy, InvalidStrategy, Fun, Args...>> {
+ struct ExpressionTraits<ReactImpl<TriggerPolicy, InvalidStrategy, Fun, Args...>> {
      using Type = decltype(std::declval<Fun>()(std::declval<typename ExpressionTraits<Args>::Type>()...));
  };
 
  template <typename Fun, typename... Args>
- using ReturnType = typename ExpressionTraits<DataSource<void, void, std::decay_t<Fun>, std::decay_t<Args>...>>::Type;
+ using ReturnType = typename ExpressionTraits<ReactImpl<void, void, std::decay_t<Fun>, std::decay_t<Args>...>>::Type;
 
  template <typename T>
  using ExprWrapper = std::conditional_t<
@@ -116,15 +114,13 @@
  template <typename T>
  concept NodeCC = requires {
      requires std::is_same_v<typename T::SourceType, DataNode> ||
-              std::is_same_v<typename T::SourceType, ActionNode> ||
-              std::is_same_v<typename T::SourceType, FieldNode>;
+              std::is_same_v<typename T::SourceType, ActionNode>;
  };
 
  template <typename T>
  concept SourceCC = requires(T t) {
      requires requires { { t.getShared() } -> std::same_as<std::shared_ptr<ObserverDataNode>>; } ||
-              requires { { t.getShared() } -> std::same_as<std::shared_ptr<ObserverActionNode>>; } ||
-              requires { { t.getShared() } -> std::same_as<std::shared_ptr<ObserverFieldNode>>; };
+              requires { { t.getShared() } -> std::same_as<std::shared_ptr<ObserverActionNode>>; };
  };
 
  template <typename T>

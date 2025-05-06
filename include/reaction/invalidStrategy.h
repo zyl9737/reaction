@@ -43,17 +43,6 @@ struct LastValStrategy {
     }
 };
 
-// Strategy for fields that closes the node in the FieldGraph when invalid
-struct FieldStrategy {
-    // Handle invalid node by closing it in the FieldGraph
-    template <typename DS>
-    void handleInvalid(DS &&ds) {
-        if constexpr (DataSourceCC<std::decay_t<DS>>) {
-            FieldGraph::getInstance().closeNode(ds.getShared());
-        }
-    }
-};
-
 } // namespace reaction
 
 #endif // REACTION_INVALIDSTRATEGY_H

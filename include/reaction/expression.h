@@ -109,9 +109,11 @@ auto operator/(L &&l, R &&r) {
     return make_binary_expr<DivOp>(std::forward<L>(l), std::forward<R>(r));
 }
 
+struct SimpleExpr {};
+struct ComplexExpr {};
 // General Expression class template (for functor-based expressions)
 template <typename TriggerPolicy, typename Fun, typename... Args>
-class Expression : public Resource<ComplexExpr, ReturnType<Fun, Args...>>, public TriggerPolicy {
+class Expression : public Resource<ReturnType<Fun, Args...>>, public TriggerPolicy {
 public:
     using ValueType = ReturnType<Fun, Args...>;
     using ExprType = ComplexExpr;
@@ -127,7 +129,7 @@ protected:
 
             setFunctor(createGetFunRef(std::forward<F>(f), std::forward<A>(args)...));
 
-            if constexpr (!std::is_void_v<ValueType>) {
+            if constexpr (!VoidCC<ValueType>) {
                 this->updateValue(evaluate());
             } else {
                 evaluate();
@@ -154,7 +156,7 @@ protected:
     }
 
     // Value change notification based on trigger policy
-    void valueChanged(bool changed) {
+    void valueChanged(bool changed) override {
         if constexpr (std::is_same_v<TriggerPolicy, ChangedTrigger>) {
             this->setChanged(changed);
         }
@@ -187,9 +189,9 @@ private:
 // Specialized Expression class template (for simple value-based expressions)
 template <typename TriggerPolicy, UnInvocaCC Type>
     requires(!IsBinaryOpExprCC<Type>)
-class Expression<TriggerPolicy, Type> : public Resource<SimpleExpr, std::decay_t<Type>> {
+class Expression<TriggerPolicy, Type> : public Resource<std::decay_t<Type>> {
 public:
-    using Resource<SimpleExpr, std::decay_t<Type>>::Resource;
+    using Resource<std::decay_t<Type>>::Resource;
     using ValueType = Type;
     using ExprType = SimpleExpr;
 
@@ -197,6 +199,10 @@ protected:
     // Direct value retrieval for simple expressions
     Type evaluate() const {
         return this->getValue();
+    }
+
+    void valueChanged([[maybe_unused]] bool changed) override {
+        this->notifyObservers(true);
     }
 };
 

@@ -8,59 +8,67 @@
 #ifndef REACTION_REACTION_H
 #define REACTION_REACTION_H
 
-#include "reaction/dataSource.h"
+#include "reaction/react.h"
 
 namespace reaction {
-// Field alias for DataWeakRef to work with DataSource
+// Field alias for React to work with ReactImpl
 template <typename SourceType>
-using Field = DataWeakRef<DataSource<AlwaysTrigger, FieldStrategy, FieldIdentity<std::decay_t<SourceType>>>>;
+using Field = React<ReactImpl<AlwaysTrigger, DirectCloseStrategy, std::decay_t<SourceType>>>;
 
-// Function to create a Field DataSource
-template <typename SourceType>
-auto field(FieldBase *obj, SourceType &&value) {
-    auto ptr = std::make_shared<DataSource<AlwaysTrigger, FieldStrategy, FieldIdentity<std::decay_t<SourceType>>>>
-               (FieldIdentity<std::decay_t<SourceType>>{obj, std::forward<SourceType>(value)});
-    FieldGraph::getInstance().addNode(ptr);
-    return DataWeakRef{ptr.get()};
-}
+// Base struct for fields (empty base class)
+class FieldBase {
+public:
+    template <typename T>
+    auto field(T &&t) {
+        auto ptr = std::make_shared<ReactImpl<AlwaysTrigger, DirectCloseStrategy, std::decay_t<T>>>(std::forward<T>(t));
+        FieldGraph::getInstance().addObj(m_id, ptr->getShared());
+        return React{ptr};
+    }
+    uint64_t getId() {
+        return m_id;
+    }
 
-// Function to create a constant DataSource
+private:
+    UniqueID m_id;
+};
+
+// Function to create a constant ReactImpl
 template <TriggerCC TriggerPolicy = AlwaysTrigger, VarInvalidCC InvalidStrategy = DirectCloseStrategy, typename SourceType>
 auto constVar(SourceType &&value) {
-    auto ptr = std::make_shared<DataSource<TriggerPolicy, InvalidStrategy, const std::decay_t<SourceType>>>(std::forward<SourceType>(value));
+    auto ptr = std::make_shared<ReactImpl<TriggerPolicy, InvalidStrategy, const std::decay_t<SourceType>>>(std::forward<SourceType>(value));
     ObserverGraph::getInstance().addNode(ptr);
-    return DataWeakRef{ptr.get()};
+    return React{ptr};
 }
 
-// Function to create a var DataSource
+// Function to create a var ReactImpl
 template <TriggerCC TriggerPolicy = AlwaysTrigger, VarInvalidCC InvalidStrategy = DirectCloseStrategy, typename SourceType>
 auto var(SourceType &&value) {
-    auto ptr = std::make_shared<DataSource<TriggerPolicy, InvalidStrategy, std::decay_t<SourceType>>>(std::forward<SourceType>(value));
+    auto ptr = std::make_shared<ReactImpl<TriggerPolicy, InvalidStrategy, std::decay_t<SourceType>>>(std::forward<SourceType>(value));
     if constexpr (HasFieldCC<std::decay_t<SourceType>>) {
         ptr->setField();
     }
     ObserverGraph::getInstance().addNode(ptr);
-    return DataWeakRef{ptr.get()};
+    return React{ptr};
 }
 
 template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectCloseStrategy, IsBinaryOpExprCC OpExpr>
 auto expr(OpExpr &&opExpr) {
-    auto ptr = std::make_shared<DataSource<TriggerPolicy, InvalidStrategy, std::decay_t<OpExpr>>>(std::forward<OpExpr>(opExpr));
+    auto ptr = std::make_shared<ReactImpl<TriggerPolicy, InvalidStrategy, std::decay_t<OpExpr>>>(std::forward<OpExpr>(opExpr));
     ObserverGraph::getInstance().addNode(ptr);
     ptr->set();
-    return DataWeakRef{ptr.get()};
+    return React{ptr};
 }
 
-// Function to create a variable DataSource
+// Function to create a variable ReactImpl
 template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectCloseStrategy, typename Fun, typename... Args>
 auto calc(Fun &&fun, Args &&...args) {
-    auto ptr = std::make_shared<DataSource<TriggerPolicy, InvalidStrategy, std::decay_t<Fun>, typename is_data_weak_ref<std::decay_t<Args>>::Type...>>();
+    auto ptr = std::make_shared<ReactImpl<TriggerPolicy, InvalidStrategy, std::decay_t<Fun>, typename is_data_weak_ref<std::decay_t<Args>>::Type...>>();
     ObserverGraph::getInstance().addNode(ptr);
     ptr->set(std::forward<Fun>(fun), std::forward<Args>(args)...);
-    return DataWeakRef{ptr.get()};
+    return React{ptr};
 }
 
-// Function to create an action DataSource
+// Function to create an action ReactImpl
 template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectCloseStrategy, typename Fun, typename... Args>
 auto action(Fun &&fun, Args &&...args) {
     return calc<TriggerPolicy, InvalidStrategy>(std::forward<Fun>(fun), std::forward<Args>(args)...);
