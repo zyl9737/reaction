@@ -106,19 +106,19 @@ public:
 
     // Getter functions for accessing data from the ReactImpl
     auto get() const
-        requires DataSourceCC<ReactType>
+        requires IsDataSource<ReactType>
     {
         return getPtr()->getValue(); // Get the value of the data source
     }
 
     auto getRaw() const
-        requires DataSourceCC<ReactType>
+        requires IsDataSource<ReactType>
     {
         return getPtr()->getRaw(); // Get the raw value of the data source
     }
 
     decltype(auto) getRef() const
-        requires DataSourceCC<ReactType>
+        requires IsDataSource<ReactType>
     {
         return getPtr()->getRef(); // Get the reference to the data source
     }
@@ -184,12 +184,10 @@ public:
     using InvStrategy = InvalidStrategy;
     using Expr::Expr; // Inherit constructors from Expr
 
-    virtual ~ReactImpl() {}
-
     // Assignment operator to update the value and notify observers
     template <typename T>
     ReactImpl &operator=(T &&t)
-        requires(SimpleExprCC<ExprType>)
+        requires(IsSimpleExpr<ExprType>)
     {
         value(std::forward<T>(t));
         return *this;
@@ -198,7 +196,7 @@ public:
     // Addition assignment operator
     template <typename T>
     ReactImpl &operator+=(const T &rhs)
-        requires(SimpleExprCC<ExprType>)
+        requires(IsSimpleExpr<ExprType> && !ConstType<ValueType>)
     {
         this->updateValue(this->getValue() + rhs);
         this->notifyObservers(true);
@@ -208,7 +206,7 @@ public:
     // Subtraction assignment operator
     template <typename T>
     ReactImpl &operator-=(const T &rhs)
-        requires(SimpleExprCC<ExprType>)
+        requires(IsSimpleExpr<ExprType> && !ConstType<ValueType>)
     {
         this->updateValue(this->getValue() - rhs);
         this->notifyObservers(true);
@@ -218,7 +216,7 @@ public:
     // Multiplication assignment operator
     template <typename T>
     ReactImpl &operator*=(const T &rhs)
-        requires(SimpleExprCC<ExprType>)
+        requires(IsSimpleExpr<ExprType> && !ConstType<ValueType>)
     {
         this->updateValue(this->getValue() * rhs);
         this->notifyObservers(true);
@@ -228,7 +226,7 @@ public:
     // Division assignment operator
     template <typename T>
     ReactImpl &operator/=(const T &rhs)
-        requires(SimpleExprCC<ExprType>)
+        requires(IsSimpleExpr<ExprType> && !ConstType<ValueType>)
     {
         this->updateValue(this->getValue() / rhs);
         this->notifyObservers(true);
@@ -237,7 +235,7 @@ public:
 
     // Prefix increment operator
     ReactImpl &operator++()
-        requires(SimpleExprCC<ExprType>)
+        requires(IsSimpleExpr<ExprType> && !ConstType<ValueType>)
     {
         this->updateValue(this->getValue() + 1);
         this->notifyObservers(true);
@@ -246,7 +244,7 @@ public:
 
     // Prefix decrement operator
     ReactImpl &operator--()
-        requires(SimpleExprCC<ExprType>)
+        requires(IsSimpleExpr<ExprType> && !ConstType<ValueType>)
     {
         this->updateValue(this->getValue() - 1);
         this->notifyObservers(true);
@@ -254,12 +252,12 @@ public:
     }
 
     // Set new value and notify observers
-    template <typename F, ArgNonEmptyCC... A>
+    template <typename F, HasArguments... A>
     ReactionError set(F &&f, A &&...args) {
         return this->setSource(std::forward<F>(f), std::forward<A>(args)...);
     }
 
-    template <InvocaCC F>
+    template <InvocableType F>
     ReactionError set(F &&f) {
         RegGuard guard;
         g_reg_fun = [this](DataNodePtr node) {
@@ -283,10 +281,10 @@ public:
 
     template <typename T>
     void value(T &&t)
-        requires(SimpleExprCC<ExprType>)
+        requires(IsSimpleExpr<ExprType> && !ConstType<ValueType>)
     {
         this->updateValue(std::forward<T>(t));
-        if constexpr (CompareCC<ValueType>) {
+        if constexpr (ComparableType<ValueType>) {
             this->notifyObservers(this->getValue() != t);
         } else {
             this->notifyObservers(true);

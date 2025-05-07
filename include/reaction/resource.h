@@ -74,7 +74,7 @@ public:
 };
 
 // Specialization of Resource for SimpleExpr type and T type with field
-template <HasFieldCC T>
+template <HasField T>
 class Resource<T> : public ResourceBase<T> {
 public:
     // Inherit constructors from ResourceBase
@@ -85,7 +85,7 @@ protected:
     void setField() {
         FieldGraph::getInstance().setField(this->m_ptr->getId(), this->getShared());
     }
-    template <TriggerCC TriggerPolicy, VarInvalidCC InvalidStrategy, typename SourceType>
+    template <IsTriggerMode TriggerPolicy, IsInvalidPolicy InvalidStrategy, typename SourceType>
     friend auto var(SourceType &&value);
 };
 

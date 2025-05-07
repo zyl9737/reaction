@@ -46,42 +46,42 @@
  // ==================== Type Traits ====================
 
  template <typename T>
- struct is_binary_op_expr : std::false_type {};
+ struct IsBinaryOpExpr : std::false_type {};
 
  template <typename Op, typename L, typename R>
- struct is_binary_op_expr<BinaryOpExpr<Op, L, R>> : std::true_type {};
+ struct IsBinaryOpExpr<BinaryOpExpr<Op, L, R>> : std::true_type {};
 
  template <typename T>
- struct is_data_weak_ref : std::false_type {
+ struct IsReact : std::false_type {
      using Type = T;
  };
 
  template <typename T>
- struct is_data_weak_ref<React<T>> : std::true_type {
+ struct IsReact<React<T>> : std::true_type {
      using Type = T;
  };
 
 // ==================== Basic type concepts ====================
 
  template <typename T>
- concept ConstCC = std::is_const_v<std::decay_t<T>>;
+ concept ConstType = std::is_const_v<std::decay_t<T>>;
 
  template <typename T>
- concept InvocaCC = std::is_invocable_v<std::decay_t<T>>;
+ concept InvocableType = std::is_invocable_v<std::decay_t<T>>;
 
  template <typename T>
- concept UnInvocaCC = !InvocaCC<T>;
+ concept NonInvocableType = !InvocableType<T>;
 
  template <typename T>
- concept VoidCC = std::is_void_v<std::decay_t<T>>;
-
- template <typename... Args>
- concept ArgNonEmptyCC = sizeof...(Args) > 0;
+ concept VoidType = std::is_void_v<std::decay_t<T>>;
 
  template <typename T>
- concept CompareCC = requires(T &a, T &b) {
+ concept ComparableType = requires(T &a, T &b) {
      { a == b } -> std::convertible_to<bool>;
  };
+
+ template <typename... Args>
+ concept HasArguments = sizeof...(Args) > 0;
 
  // ==================== Expression Traits ====================
 
@@ -90,7 +90,7 @@
      using Type = T;
  };
 
- template <typename TriggerPolicy, typename InvalidStrategy, UnInvocaCC T>
+ template <typename TriggerPolicy, typename InvalidStrategy, NonInvocableType T>
  struct ExpressionTraits<ReactImpl<TriggerPolicy, InvalidStrategy, T>> {
      using Type = T;
  };
@@ -105,63 +105,54 @@
 
  template <typename T>
  using ExprWrapper = std::conditional_t<
-     is_data_weak_ref<T>::value || is_binary_op_expr<T>::value,
+     IsReact<T>::value || IsBinaryOpExpr<T>::value,
      T,
      ValueWrapper<T>>;
 
  // ==================== Logic Concepts ====================
 
  template <typename T>
- concept NodeCC = requires {
+ concept IsObserverNode = requires {
      requires std::is_same_v<typename T::SourceType, DataNode> ||
               std::is_same_v<typename T::SourceType, ActionNode>;
  };
 
  template <typename T>
- concept SourceCC = requires(T t) {
+ concept IsReactSource = requires(T t) {
      requires requires { { t.getShared() } -> std::same_as<std::shared_ptr<ObserverDataNode>>; } ||
               requires { { t.getShared() } -> std::same_as<std::shared_ptr<ObserverActionNode>>; };
  };
 
  template <typename T>
- concept DataSourceCC = requires {
+ concept IsDataSource = requires {
      typename T::ValueType;
-     requires SourceCC<T> && !std::is_void_v<typename T::ValueType>;
+     requires IsReactSource<T> && !std::is_void_v<typename T::ValueType>;
  };
 
  template <typename T>
- concept ActionSourceCC = requires {
-     typename T::ValueType;
-     requires SourceCC<T> && std::is_void_v<typename T::ValueType>;
- };
+ concept IsSimpleExpr = std::is_same_v<T, SimpleExpr>;
 
  template <typename T>
- concept SimpleExprCC = std::is_same_v<T, SimpleExpr>;
-
- template <typename T>
- concept TriggerCC = requires(T t) {
+ concept IsTriggerMode = requires(T t) {
      { t.checkTrigger() } -> std::same_as<bool>;
  };
 
  template <typename T>
- concept InvalidCC = requires(T t, AnyType ds) {
+ concept IsInvalidPolicy = requires(T t, AnyType ds) {
      { t.handleInvalid(ds) } -> std::same_as<void>;
  };
 
  template <typename T>
- concept VarInvalidCC = InvalidCC<T> && !std::is_same_v<std::decay_t<T>, LastValStrategy>;
+ concept HasField = std::is_base_of_v<FieldBase, std::decay_t<T>>;
 
  template <typename T>
- concept HasFieldCC = std::is_base_of_v<FieldBase, std::decay_t<T>>;
-
- template <typename T>
- concept IsBinaryOpExprCC = is_binary_op_expr<T>::value;
+ concept IsBinaryOpExpression = IsBinaryOpExpr<T>::value;
 
  template <typename L, typename R>
- concept CustomOpCC = is_data_weak_ref<std::decay_t<L>>::value ||
-                     is_data_weak_ref<std::decay_t<R>>::value ||
-                     is_binary_op_expr<std::decay_t<L>>::value ||
-                     is_binary_op_expr<std::decay_t<R>>::value;
+ concept HasCustomOp = IsReact<std::decay_t<L>>::value ||
+                     IsReact<std::decay_t<R>>::value ||
+                     IsBinaryOpExpr<std::decay_t<L>>::value ||
+                     IsBinaryOpExpr<std::decay_t<R>>::value;
 
  } // namespace reaction
 

@@ -33,7 +33,7 @@ private:
 };
 
 // Function to create a constant ReactImpl
-template <TriggerCC TriggerPolicy = AlwaysTrigger, VarInvalidCC InvalidStrategy = DirectCloseStrategy, typename SourceType>
+template <IsTriggerMode TriggerPolicy = AlwaysTrigger, IsInvalidPolicy InvalidStrategy = DirectCloseStrategy, typename SourceType>
 auto constVar(SourceType &&value) {
     auto ptr = std::make_shared<ReactImpl<TriggerPolicy, InvalidStrategy, const std::decay_t<SourceType>>>(std::forward<SourceType>(value));
     ObserverGraph::getInstance().addNode(ptr);
@@ -41,17 +41,17 @@ auto constVar(SourceType &&value) {
 }
 
 // Function to create a var ReactImpl
-template <TriggerCC TriggerPolicy = AlwaysTrigger, VarInvalidCC InvalidStrategy = DirectCloseStrategy, typename SourceType>
+template <IsTriggerMode TriggerPolicy = AlwaysTrigger, IsInvalidPolicy InvalidStrategy = DirectCloseStrategy, typename SourceType>
 auto var(SourceType &&value) {
     auto ptr = std::make_shared<ReactImpl<TriggerPolicy, InvalidStrategy, std::decay_t<SourceType>>>(std::forward<SourceType>(value));
-    if constexpr (HasFieldCC<std::decay_t<SourceType>>) {
+    if constexpr (HasField<std::decay_t<SourceType>>) {
         ptr->setField();
     }
     ObserverGraph::getInstance().addNode(ptr);
     return React{ptr};
 }
 
-template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectCloseStrategy, IsBinaryOpExprCC OpExpr>
+template <IsTriggerMode TriggerPolicy = AlwaysTrigger, IsInvalidPolicy InvalidStrategy = DirectCloseStrategy, IsBinaryOpExpression OpExpr>
 auto expr(OpExpr &&opExpr) {
     auto ptr = std::make_shared<ReactImpl<TriggerPolicy, InvalidStrategy, std::decay_t<OpExpr>>>(std::forward<OpExpr>(opExpr));
     ObserverGraph::getInstance().addNode(ptr);
@@ -60,16 +60,16 @@ auto expr(OpExpr &&opExpr) {
 }
 
 // Function to create a variable ReactImpl
-template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectCloseStrategy, typename Fun, typename... Args>
+template <IsTriggerMode TriggerPolicy = AlwaysTrigger, IsInvalidPolicy InvalidStrategy = DirectCloseStrategy, typename Fun, typename... Args>
 auto calc(Fun &&fun, Args &&...args) {
-    auto ptr = std::make_shared<ReactImpl<TriggerPolicy, InvalidStrategy, std::decay_t<Fun>, typename is_data_weak_ref<std::decay_t<Args>>::Type...>>();
+    auto ptr = std::make_shared<ReactImpl<TriggerPolicy, InvalidStrategy, std::decay_t<Fun>, typename IsReact<std::decay_t<Args>>::Type...>>();
     ObserverGraph::getInstance().addNode(ptr);
     ptr->set(std::forward<Fun>(fun), std::forward<Args>(args)...);
     return React{ptr};
 }
 
 // Function to create an action ReactImpl
-template <TriggerCC TriggerPolicy = AlwaysTrigger, InvalidCC InvalidStrategy = DirectCloseStrategy, typename Fun, typename... Args>
+template <IsTriggerMode TriggerPolicy = AlwaysTrigger, IsInvalidPolicy InvalidStrategy = DirectCloseStrategy, typename Fun, typename... Args>
 auto action(Fun &&fun, Args &&...args) {
     return calc<TriggerPolicy, InvalidStrategy>(std::forward<Fun>(fun), std::forward<Args>(args)...);
 }

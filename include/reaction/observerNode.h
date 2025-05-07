@@ -61,14 +61,14 @@ public:
     }
 
     // Add a new node to the graph
-    template <NodeCC NodeType>
+    template <IsObserverNode NodeType>
     void addNode(std::shared_ptr<NodeType> node) {
         m_dependents[node];
         m_observers[node];
     }
 
     // Add an observer for a specific node
-    template <NodeCC NodeType, NodeCC TargetType>
+    template <IsObserverNode NodeType, IsObserverNode TargetType>
     bool addObserver(std::shared_ptr<NodeType> source, std::shared_ptr<TargetType> target) {
         if constexpr (std::is_same_v<NodeType, TargetType>) {
             if (source == target) {
@@ -92,7 +92,7 @@ public:
     }
 
     // Reset the observers for a node
-    template <NodeCC NodeType>
+    template <IsObserverNode NodeType>
     void resetNode(std::shared_ptr<NodeType> node) {
         cleanupDependencies(node);
         m_dependents[node].clear();
@@ -105,7 +105,7 @@ public:
     }
 
     // Close a node and its dependencies
-    template <NodeCC NodeType>
+    template <IsObserverNode NodeType>
     void closeNode(std::shared_ptr<NodeType> node) {
         if (!node) return;
         std::unordered_set<std::shared_ptr<void>> closedNodes;
@@ -116,7 +116,7 @@ private:
     ObserverGraph() {
     }
 
-    template <NodeCC NodeType>
+    template <IsObserverNode NodeType>
     void cleanupDependencies(std::shared_ptr<NodeType> node) {
         for (auto dep : m_dependents[node]) {
             auto it = m_observers[dep].find(node);
@@ -128,7 +128,7 @@ private:
     }
 
     // Cascade close all dependent nodes
-    template <NodeCC NodeType>
+    template <IsObserverNode NodeType>
     void cascadeCloseDependents(std::shared_ptr<NodeType> node, std::unordered_set<std::shared_ptr<void>> &closedNodes) {
         if (!node || closedNodes.count(node)) return;
         closedNodes.insert(node);
@@ -144,7 +144,7 @@ private:
     }
 
     // Internal close node implementation (without cascading)
-    template <NodeCC NodeType>
+    template <IsObserverNode NodeType>
     void closeNodeInternal(std::shared_ptr<NodeType> node) {
         if (!node) return;
 
@@ -197,7 +197,7 @@ private:
         return false;
     }
 
-    template <NodeCC NodeType>
+    template <IsObserverNode NodeType>
     void hasRepeatDependencies(std::shared_ptr<NodeType> source, DataNodePtr target) {
         std::unordered_set<DataNodePtr> targetDependencies;
         collectDependencies(target, targetDependencies);
@@ -222,7 +222,7 @@ private:
     }
 
     // Check if a node is part of a target's dependencies
-    template <NodeCC SrcType, NodeCC NodeType>
+    template <IsObserverNode SrcType, IsObserverNode NodeType>
     bool checkDependency(std::shared_ptr<SrcType> source, std::shared_ptr<NodeType> node, const std::unordered_set<DataNodePtr> &targetDependencies, std::unordered_set<DataNodePtr> &visited) {
         if (visited.count(node)) return false;
         visited.insert(node);
@@ -251,14 +251,13 @@ template <typename Derived>
 class ObserverBase : public std::enable_shared_from_this<Derived> {
 public:
     using SourceType = DataNode;
-    ObserverBase(const ObserverBase &) = delete;
-    ObserverBase &operator=(const ObserverBase &) = delete;
-    ObserverBase(ObserverBase &&) = delete;
-    ObserverBase &operator=(ObserverBase &&) = delete;
+
     // Constructor with an optional name
     ObserverBase(const std::string &name = "") :
         m_name(name) {
     }
+
+    ~ObserverBase() = default;
 
     // Set and get the name of the observer
     void setName(const std::string &name) {

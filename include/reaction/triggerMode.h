@@ -46,7 +46,7 @@ private:
 // Trigger mode based on a threshold
 struct ThresholdTrigger {
     // Set the threshold function to determine whether to trigger based on arguments
-    template <typename F, ArgNonEmptyCC... A>
+    template <typename F, HasArguments... A>
     void setThreshold(F &&f, A &&...args) {
         m_thresholdFun = createGetFunRef(std::forward<F>(f), std::forward<A>(args)...);
     }

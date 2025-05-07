@@ -17,7 +17,7 @@ struct DirectCloseStrategy {
     // Handle invalid node by closing it in the ObserverGraph
     template <typename Source>
     void handleInvalid(Source &&source) {
-        if constexpr (SourceCC<std::decay_t<Source>>) {
+        if constexpr (IsReactSource<std::decay_t<Source>>) {
             ObserverGraph::getInstance().closeNode(source.getShared());
         }
     }
@@ -36,7 +36,7 @@ struct LastValStrategy {
     // Handle invalid node by setting the last valid value
     template <typename DS>
     void handleInvalid(DS &&ds) {
-        if constexpr (DataSourceCC<std::decay_t<DS>>) {
+        if constexpr (IsDataSource<std::decay_t<DS>>) {
             auto val = ds.get();           // Get the current valid value
             ds.set([=]() { return val; }); // Set the value to the last valid one
         }

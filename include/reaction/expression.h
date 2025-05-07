@@ -86,25 +86,25 @@ auto make_binary_expr(L &&l, R &&r) {
 }
 
 template <typename L, typename R>
-    requires CustomOpCC<L, R>
+    requires HasCustomOp<L, R>
 auto operator+(L &&l, R &&r) {
     return make_binary_expr<AddOp>(std::forward<L>(l), std::forward<R>(r));
 }
 
 template <typename L, typename R>
-    requires CustomOpCC<L, R>
+    requires HasCustomOp<L, R>
 auto operator*(L &&l, R &&r) {
     return make_binary_expr<MulOp>(std::forward<L>(l), std::forward<R>(r));
 }
 
 template <typename L, typename R>
-    requires CustomOpCC<L, R>
+    requires HasCustomOp<L, R>
 auto operator-(L &&l, R &&r) {
     return make_binary_expr<SubOp>(std::forward<L>(l), std::forward<R>(r));
 }
 
 template <typename L, typename R>
-    requires CustomOpCC<L, R>
+    requires HasCustomOp<L, R>
 auto operator/(L &&l, R &&r) {
     return make_binary_expr<DivOp>(std::forward<L>(l), std::forward<R>(r));
 }
@@ -122,14 +122,14 @@ protected:
     // Sets the source data for the expression and updates the functor
     template <typename F, typename... A>
     ReactionError setSource(F &&f, A &&...args) {
-        if constexpr (std::convertible_to<ReturnType<std::decay_t<F>, typename is_data_weak_ref<std::decay_t<A>>::Type...>, ValueType>) {
+        if constexpr (std::convertible_to<ReturnType<std::decay_t<F>, typename IsReact<std::decay_t<A>>::Type...>, ValueType>) {
             if (!this->updateObservers(std::forward<A>(args)...)) {
                 return ReactionError::CycleDepErr;
             }
 
             setFunctor(createGetFunRef(std::forward<F>(f), std::forward<A>(args)...));
 
-            if constexpr (!VoidCC<ValueType>) {
+            if constexpr (!VoidType<ValueType>) {
                 this->updateValue(evaluate());
             } else {
                 evaluate();
@@ -148,7 +148,7 @@ protected:
 
     // Evaluates the functor and returns its result
     auto evaluate() const {
-        if constexpr (VoidCC<ValueType>) {
+        if constexpr (VoidType<ValueType>) {
             std::invoke(m_fun);
         } else {
             return std::invoke(m_fun);
@@ -162,11 +162,11 @@ protected:
         }
 
         if (TriggerPolicy::checkTrigger()) {
-            if constexpr (!VoidCC<ValueType>) {
+            if constexpr (!VoidType<ValueType>) {
                 auto oldVal = this->getValue();
                 auto newVal = evaluate();
                 this->updateValue(newVal);
-                if constexpr (CompareCC<ValueType>) {
+                if constexpr (ComparableType<ValueType>) {
                     this->notifyObservers(oldVal != newVal);
                 } else {
                     this->notifyObservers(true);
@@ -187,8 +187,8 @@ private:
 };
 
 // Specialized Expression class template (for simple value-based expressions)
-template <typename TriggerPolicy, UnInvocaCC Type>
-    requires(!IsBinaryOpExprCC<Type>)
+template <typename TriggerPolicy, NonInvocableType Type>
+    requires(!IsBinaryOpExpression<Type>)
 class Expression<TriggerPolicy, Type> : public Resource<std::decay_t<Type>> {
 public:
     using Resource<std::decay_t<Type>>::Resource;
